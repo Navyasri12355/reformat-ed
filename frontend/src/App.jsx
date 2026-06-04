@@ -12,32 +12,80 @@ import ASDDash       from './ASDDash.jsx'
   screen values:
     'home' | 'teacher-login' | 'teacher-dash'
     'student-login' | 'quiz' | 'adhd' | 'dyslexia' | 'asd'
+
+  Phase 2: atoms (uploaded + transformed content) flow from TeacherDash → student views.
+  The teacher uploads a file; atoms are stored in global state and passed down.
 */
 export default function App() {
-  const [screen, setScreen] = useState('home')
+  const [screen, setScreen]           = useState('home')
   const [studentName, setStudentName] = useState('')
-  const [profile, setProfile] = useState(null) // { type: 'adhd'|'dyslexia'|'asd' }
+  const [profile, setProfile]         = useState(null)   // { type: 'adhd'|'dyslexia'|'asd' }
+
+  // Phase 2 — shared curriculum state
+  // atoms: raw atoms from /upload, e.g. [{id, text, word_count}]
+  // transformed: {adhd: [{atom_id, rewritten_text}], dyslexia: [...], asd: [...]}
+  const [atoms, setAtoms]             = useState([])
+  const [transformed, setTransformed] = useState({ adhd: [], dyslexia: [], asd: [] })
 
   const go = (s) => setScreen(s)
 
   if (screen === 'teacher-login')
     return <TeacherLogin onLogin={() => go('teacher-dash')} onBack={() => go('home')} />
+
   if (screen === 'teacher-dash')
-    return <TeacherDash onLogout={() => go('home')} />
+    return (
+      <TeacherDash
+        onLogout={() => go('home')}
+        atoms={atoms}
+        setAtoms={setAtoms}
+        transformed={transformed}
+        setTransformed={setTransformed}
+      />
+    )
+
   if (screen === 'student-login')
-    return <StudentLogin
-      onLogin={(name) => { setStudentName(name); go('quiz') }}
-      onSkipDiagnosed={(name, type) => { setStudentName(name); setProfile({ type }); go(type) }}
-      onBack={() => go('home')}
-    />
+    return (
+      <StudentLogin
+        onLogin={(name) => { setStudentName(name); go('quiz') }}
+        onSkipDiagnosed={(name, type) => { setStudentName(name); setProfile({ type }); go(type) }}
+        onBack={() => go('home')}
+      />
+    )
+
   if (screen === 'quiz')
-    return <Quiz
-      studentName={studentName}
-      onComplete={(type) => { setProfile({ type }); go(type) }}
-    />
-  if (screen === 'adhd')     return <ADHDDash     studentName={studentName} onLogout={() => go('home')} />
-  if (screen === 'dyslexia') return <DyslexiaDash studentName={studentName} onLogout={() => go('home')} />
-  if (screen === 'asd')      return <ASDDash      studentName={studentName} onLogout={() => go('home')} />
+    return (
+      <Quiz
+        studentName={studentName}
+        onComplete={(type) => { setProfile({ type }); go(type) }}
+      />
+    )
+
+  if (screen === 'adhd')
+    return (
+      <ADHDDash
+        studentName={studentName}
+        onLogout={() => go('home')}
+        transformedAtoms={transformed.adhd}
+      />
+    )
+
+  if (screen === 'dyslexia')
+    return (
+      <DyslexiaDash
+        studentName={studentName}
+        onLogout={() => go('home')}
+        transformedAtoms={transformed.dyslexia}
+      />
+    )
+
+  if (screen === 'asd')
+    return (
+      <ASDDash
+        studentName={studentName}
+        onLogout={() => go('home')}
+        transformedAtoms={transformed.asd}
+      />
+    )
 
   // ── Home / Role Select ──
   return (

@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
 
-const QUESTS = [
+/*
+  ADHDDash — Phase 2 update
+  --------------------------
+  Accepts `transformedAtoms` from the parent (real AI-generated content).
+  Falls back to the static QUESTS demo data if no atoms have been loaded yet.
+*/
+
+const STATIC_QUESTS = [
   {
     id: 1, num: 'QUEST 01', title: 'The Photosynthesis Challenge',
     tag: '⚡ 5 min', xp: 50, active: true,
@@ -25,14 +32,55 @@ const QUESTS = [
   },
 ]
 
-export default function ADHDDash({ studentName, onLogout }) {
-  const [activeQuest, setActiveQuest] = useState(QUESTS[0])
-  const [step, setStep] = useState(activeQuest.current)
-  const [xp, setXp] = useState(120)
-  const [streak, setStreak] = useState(4)
+// Parse the AI-rewritten ADHD text into quest steps.
+// The prompt produces lines like "Step 1 › ..." — we extract those.
+function parseADHDAtom(rewrittenText, atomId, index) {
+  const lines = rewrittenText.split('\n').map(l => l.trim()).filter(Boolean)
+
+  // Extract mission title (line starting with 🎯 MISSION:)
+  const titleLine = lines.find(l => l.startsWith('🎯'))
+  const title = titleLine
+    ? titleLine.replace(/^🎯\s*MISSION:\s*/i, '').replace(/^MISSION:\s*/i, '')
+    : `Mission ${index + 1}`
+
+  // Extract steps (lines with "Step N ›" or numbered)
+  const stepLines = lines.filter(l =>
+    /^step\s*\d+/i.test(l) || /^\d+[\.\)›]/.test(l)
+  )
+  const steps = stepLines.length > 0
+    ? stepLines.map(l => l.replace(/^step\s*\d+\s*[›:.\)]\s*/i, '').replace(/^\d+[\.\)›]\s*/, ''))
+    : lines.filter(l => !l.startsWith('🎯') && !l.startsWith('⚡'))
+
+  // Extract XP line
+  const xpLine = lines.find(l => l.startsWith('⚡'))
+  const xp = xpLine ? parseInt(xpLine.match(/\+?(\d+)/)?.[1] || '50') : 50
+
+  return {
+    id: index + 1,
+    num: `QUEST ${String(index + 1).padStart(2, '0')}`,
+    title,
+    tag: `⚡ ${Math.ceil(steps.length * 1.5)} min`,
+    xp,
+    active: index === 0,
+    steps,
+    current: 0,
+    atomId,
+  }
+}
+
+export default function ADHDDash({ studentName, onLogout, transformedAtoms = [] }) {
+  // Build quest list from real atoms, or fall back to static
+  const quests = transformedAtoms.length > 0
+    ? transformedAtoms.map((a, i) => parseADHDAtom(a.rewritten_text || a.text, a.atom_id, i))
+    : STATIC_QUESTS
+
+  const [activeQuest, setActiveQuest] = useState(quests[0])
+  const [step, setStep]               = useState(0)
+  const [xp, setXp]                   = useState(120)
+  const [streak, setStreak]           = useState(4)
 
   const totalSteps = activeQuest.steps.length
-  const progress = totalSteps ? Math.round((step / totalSteps) * 100) : 0
+  const progress   = totalSteps ? Math.round((step / totalSteps) * 100) : 0
 
   const advance = () => {
     if (step < totalSteps - 1) {
@@ -43,6 +91,13 @@ export default function ADHDDash({ studentName, onLogout }) {
       setStreak(s => s + 1)
     }
   }
+
+  const selectQuest = (q) => {
+    setActiveQuest(q)
+    setStep(0)
+  }
+
+  const isComplete = step >= totalSteps - 1 && totalSteps > 0
 
   return (
     <div className="adhd-root page-enter">
@@ -63,14 +118,23 @@ export default function ADHDDash({ studentName, onLogout }) {
       </nav>
 
       <div className="adhd-body">
+        {/* Live content badge */}
+        {transformedAtoms.length > 0 && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)',
+            borderRadius: 999, padding: '4px 12px', marginBottom: 16,
+            fontSize: '0.76rem', color: '#4ade80', fontFamily: 'var(--font-mono)',
+          }}>
+            <span style={{ width: 6, height: 6, background: '#4ade80', borderRadius: '50%', display: 'inline-block' }} />
+            LIVE AI CONTENT — {transformedAtoms.length} missions generated
+          </div>
+        )}
+
         {/* Hero — active quest */}
         <div className="adhd-hero">
           <div className="adhd-mission-label">🎯 Active Mission</div>
-          <div className="adhd-mission-title">
-            {activeQuest.title.split(' ').map((w, i) =>
-              i === 0 ? <span key={i}>{w} </span> : <React.Fragment key={i}>{w} </React.Fragment>
-            )}
-          </div>
+          <div className="adhd-mission-title">{activeQuest.title}</div>
 
           {/* Current step display */}
           {totalSteps > 0 && (
@@ -90,6 +154,16 @@ export default function ADHDDash({ studentName, onLogout }) {
             </div>
           )}
 
+          {totalSteps === 0 && (
+            <div style={{
+              background: 'rgba(255,255,255,0.04)', borderRadius: 12,
+              padding: '18px 20px', marginBottom: 16, color: 'rgba(240,237,230,0.5)',
+              fontSize: '0.9rem',
+            }}>
+              Select a quest below to begin your mission.
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
             <span className="adhd-quest-tag">{activeQuest.tag}</span>
             <span className="adhd-quest-tag">+{activeQuest.xp} XP on complete</span>
@@ -102,22 +176,25 @@ export default function ADHDDash({ studentName, onLogout }) {
             <div className="adhd-progress-label">{progress}% done</div>
           </div>
 
-          <button
-            onClick={advance}
-            style={{
-              marginTop: 20,
-              background: 'var(--adhd-primary)', color: '#0f0f14',
-              fontFamily: 'var(--font-display)', fontWeight: 800,
-              fontSize: '0.95rem', padding: '13px 28px', borderRadius: 999,
-              border: 'none', cursor: 'pointer',
-              boxShadow: '0 0 20px rgba(245,166,35,0.3)',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.04)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            {step < totalSteps - 1 ? '→ Next Step' : '🏆 Complete Quest!'}
-          </button>
+          {totalSteps > 0 && (
+            <button
+              onClick={advance}
+              style={{
+                marginTop: 20,
+                background: isComplete ? '#4ade80' : 'var(--adhd-primary)',
+                color: '#0f0f14',
+                fontFamily: 'var(--font-display)', fontWeight: 800,
+                fontSize: '0.95rem', padding: '13px 28px', borderRadius: 999,
+                border: 'none', cursor: 'pointer',
+                boxShadow: `0 0 20px ${isComplete ? 'rgba(74,222,128,0.35)' : 'rgba(245,166,35,0.3)'}`,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.04)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              {isComplete ? '🏆 Complete Quest!' : '→ Next Step'}
+            </button>
+          )}
         </div>
 
         {/* Quest grid */}
@@ -128,11 +205,11 @@ export default function ADHDDash({ studentName, onLogout }) {
         }}>ALL QUESTS</div>
 
         <div className="adhd-quest-grid">
-          {QUESTS.map(q => (
+          {quests.map(q => (
             <div
               key={q.id}
               className={`adhd-quest-card ${activeQuest.id === q.id ? 'active' : ''}`}
-              onClick={() => { setActiveQuest(q); setStep(q.current) }}
+              onClick={() => selectQuest(q)}
             >
               <div className="adhd-quest-num">{q.num}</div>
               <div className="adhd-quest-title">{q.title}</div>
@@ -147,8 +224,7 @@ export default function ADHDDash({ studentName, onLogout }) {
 
         {/* XP bar */}
         <div style={{
-          marginTop: 28,
-          background: '#1a1a22',
+          marginTop: 28, background: '#1a1a22',
           border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 16, padding: '18px 22px',
           display: 'flex', alignItems: 'center', gap: 20,

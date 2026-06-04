@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { uploadDocument, transformBatch } from './api.js'
 
 const MOCK_STUDENTS = [
   { id: 1, name: 'Aisha Patel',    profile: 'ADHD',     progress: 72, lastActive: '2 hrs ago',  status: 'active' },
@@ -17,21 +18,96 @@ const MOCK_QUEUE = [
 const PROFILE_COLORS = { ADHD: 'amber', Dyslexia: 'blue', ASD: 'green' }
 const STATUS_COLORS  = { active: 'green', review: 'amber', flagged: 'rose', pending: 'amber', approved: 'green' }
 
-export default function TeacherDash({ onLogout }) {
-  const [tab, setTab]         = useState('overview')
-  const [queue, setQueue]     = useState(MOCK_QUEUE)
-  const [dragOver, setDragOver] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadDone, setUploadDone] = useState(false)
+// How many atoms to transform per profile for the hackathon demo
+// (set lower to save API credits; 3 = fast demo)
+const ATOMS_TO_TRANSFORM = 3
+
+export default function TeacherDash({ onLogout, atoms, setAtoms, transformed, setTransformed }) {
+  const [tab, setTab]               = useState('overview')
+  const [queue, setQueue]           = useState(MOCK_QUEUE)
+  const [dragOver, setDragOver]     = useState(false)
+
+  // Upload + transform state
+  const [uploading, setUploading]   = useState(false)
+  const [uploadError, setUploadError] = useState(null)
+  const [transforming, setTransforming] = useState(false)
+  const [transformStep, setTransformStep] = useState('')
+  const [uploadResult, setUploadResult]   = useState(null)   // raw upload response
+  const [allDone, setAllDone]       = useState(false)
+
   const fileRef = useRef()
 
-  const handleFile = () => {
+  // ── Real upload + transform flow ──────────────────────────────────────
+  const handleFile = async (file) => {
+    if (!file) return
+    setUploadError(null)
+    setAllDone(false)
+    setUploadResult(null)
+
+    // Step 1: Upload to Phase 1 /api/upload
     setUploading(true)
-    setTimeout(() => { setUploading(false); setUploadDone(true) }, 2200)
+    let uploadData
+    try {
+      uploadData = await uploadDocument(file)
+    } catch (err) {
+      setUploadError(`Upload failed: ${err.message}`)
+      setUploading(false)
+      return
+    }
+    setUploading(false)
+    setUploadResult(uploadData)
+    setAtoms(uploadData.atoms)
+
+    // Step 2: Transform for all three profiles via /api/transform/batch
+    // We cap at ATOMS_TO_TRANSFORM atoms to keep demo fast
+    const subset = uploadData.atoms.slice(0, ATOMS_TO_TRANSFORM)
+
+    setTransforming(true)
+    const newTransformed = { adhd: [], dyslexia: [], asd: [] }
+
+    for (const profile of ['adhd', 'dyslexia', 'asd']) {
+      setTransformStep(`Transforming for ${profile.toUpperCase()} profile…`)
+      try {
+        const result = await transformBatch(
+          subset.map(a => ({ id: a.id, text: a.text })),
+          profile
+        )
+        newTransformed[profile] = result.results
+      } catch (err) {
+        // Non-fatal: show error in the UI but continue with other profiles
+        console.error(`Transform failed for ${profile}:`, err)
+        newTransformed[profile] = subset.map(a => ({
+          atom_id:        a.id,
+          profile,
+          original_text:  a.text,
+          rewritten_text: `[Could not transform: ${err.message}]`,
+          error:          true,
+        }))
+      }
+    }
+
+    setTransformed(newTransformed)
+    setTransforming(false)
+    setTransformStep('')
+    setAllDone(true)
+  }
+
+  const onFileInput = (e) => {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+  }
+
+  const onDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFile(file)
   }
 
   const approveItem = (id) =>
     setQueue(q => q.map(i => i.id === id ? { ...i, status: 'approved' } : i))
+
+  const isProcessing = uploading || transforming
 
   const TABS = [
     { id: 'overview', icon: '📊', label: 'Overview' },
@@ -90,7 +166,7 @@ export default function TeacherDash({ onLogout }) {
               <div className="stats-row">
                 {[
                   { v: '5',  l: 'Active Students',   c: 'var(--accent-green)' },
-                  { v: '12', l: 'Atoms Delivered',    c: 'var(--accent-blue)'  },
+                  { v: atoms.length || '—', l: 'Atoms Loaded', c: 'var(--accent-blue)'  },
                   { v: '2',  l: 'Pending Reviews',    c: 'var(--accent-amber)' },
                   { v: '1',  l: 'Flagged Students',   c: 'var(--accent-rose)'  },
                 ].map(s => (
@@ -121,6 +197,20 @@ export default function TeacherDash({ onLogout }) {
                   </div>
                 ))}
               </div>
+
+              {/* Phase 2: show transform status */}
+              {allDone && (
+                <div className="card" style={{ borderLeft: '4px solid var(--accent-green)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, marginBottom: 8 }}>
+                    ✅ Content Ready
+                  </div>
+                  <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
+                    {uploadResult?.atom_count} atoms extracted from <strong>{uploadResult?.filename}</strong>.
+                    Personalised versions generated for ADHD, Dyslexia and ASD profiles.
+                    Students can now log in and see their content.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -131,29 +221,70 @@ export default function TeacherDash({ onLogout }) {
                 Upload Curriculum
               </h2>
               <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: 28 }}>
-                Upload a PDF, DOCX, or plain text file. The system will extract curriculum atoms and prepare personalised versions for each profile.
+                Upload a PDF, DOCX, or plain text file. The system will extract curriculum atoms
+                and immediately generate personalised versions for each cognitive profile.
               </p>
 
-              {!uploadDone ? (
+              {uploadError && (
+                <div style={{
+                  background: '#fff0f0', border: '2px solid var(--accent-rose)',
+                  borderRadius: 10, padding: '14px 18px', marginBottom: 20,
+                  fontSize: '0.88rem', color: '#b91c1c',
+                }}>
+                  ⚠️ {uploadError}
+                  <button
+                    onClick={() => setUploadError(null)}
+                    style={{ marginLeft: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', fontWeight: 700 }}
+                  >✕</button>
+                </div>
+              )}
+
+              {!allDone ? (
                 <div
                   className={`dropzone ${dragOver ? 'drag-over' : ''}`}
-                  onClick={() => fileRef.current.click()}
+                  onClick={() => !isProcessing && fileRef.current.click()}
                   onDragOver={e => { e.preventDefault(); setDragOver(true) }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFile() }}
+                  onDrop={onDrop}
+                  style={{ cursor: isProcessing ? 'wait' : 'pointer' }}
                 >
-                  <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleFile} accept=".pdf,.docx,.txt" />
-                  {uploading ? (
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={onFileInput}
+                    accept=".pdf,.docx,.txt"
+                  />
+                  {isProcessing ? (
                     <>
                       <div style={{ fontSize: '2.2rem', marginBottom: 12 }}>⏳</div>
-                      <div className="dropzone-label">Processing your file…</div>
-                      <div className="dropzone-sub">Extracting curriculum atoms</div>
+                      <div className="dropzone-label">
+                        {uploading ? 'Uploading and parsing file…' : transformStep || 'Generating personalised content…'}
+                      </div>
+                      <div className="dropzone-sub">
+                        {uploading
+                          ? 'Extracting curriculum atoms with PyMuPDF…'
+                          : 'Calling GPT-4o with cognitive-profile prompts…'
+                        }
+                      </div>
+
+                      {/* Progress bar animation */}
+                      <div style={{
+                        marginTop: 24, width: '100%', maxWidth: 300,
+                        background: 'var(--border)', borderRadius: 999, overflow: 'hidden', height: 6,
+                      }}>
+                        <div style={{
+                          height: '100%', background: 'var(--accent-blue)',
+                          borderRadius: 999, width: '60%',
+                          animation: 'shimmer 1.4s ease-in-out infinite',
+                        }} />
+                      </div>
                     </>
                   ) : (
                     <>
                       <div className="dropzone-icon">📄</div>
                       <div className="dropzone-label">Drop your file here or click to browse</div>
-                      <div className="dropzone-sub">PDF, DOCX, or TXT — max 20 MB</div>
+                      <div className="dropzone-sub">PDF, DOCX, or TXT — max 10 MB</div>
                     </>
                   )}
                 </div>
@@ -164,9 +295,38 @@ export default function TeacherDash({ onLogout }) {
                     File processed successfully
                   </div>
                   <p style={{ color: 'var(--muted)', marginBottom: 20 }}>
-                    14 curriculum atoms extracted. AI transformation queued for 5 student profiles.
+                    <strong>{uploadResult?.atom_count}</strong> curriculum atoms extracted from{' '}
+                    <strong>{uploadResult?.filename}</strong>.<br />
+                    AI-personalised content generated for ADHD, Dyslexia, and ASD profiles.
                   </p>
-                  <button className="btn btn-outline btn-sm" onClick={() => setUploadDone(false)}>
+
+                  {/* Preview of atoms */}
+                  {atoms.length > 0 && (
+                    <div style={{ textAlign: 'left', marginBottom: 20 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' }}>
+                        Extracted Atoms Preview
+                      </div>
+                      {atoms.slice(0, 3).map((a, i) => (
+                        <div key={a.id} style={{
+                          background: 'var(--paper)', border: '1px solid var(--border)',
+                          borderRadius: 8, padding: '10px 14px', marginBottom: 8,
+                          fontSize: '0.85rem', lineHeight: 1.6,
+                        }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--muted)', marginRight: 8 }}>
+                            {a.id}
+                          </span>
+                          {a.text.slice(0, 120)}{a.text.length > 120 ? '…' : ''}
+                        </div>
+                      ))}
+                      {atoms.length > 3 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                          +{atoms.length - 3} more atoms
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button className="btn btn-outline btn-sm" onClick={() => { setAllDone(false); setUploadResult(null) }}>
                     Upload another file
                   </button>
                 </div>
