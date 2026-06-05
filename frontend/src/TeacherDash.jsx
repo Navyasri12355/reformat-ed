@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { uploadDocument, transformBatch } from './api.js'
+import { uploadDocument, transformBatch } from './utils/api.js'
 
 const MOCK_STUDENTS = [
   { id: 1, name: 'Aisha Patel',    profile: 'ADHD',     progress: 72, lastActive: '2 hrs ago',  status: 'active' },

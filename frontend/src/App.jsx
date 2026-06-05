@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
-import TeacherLogin  from './TeacherLogin.jsx'
-import StudentLogin  from './StudentLogin.jsx'
-import TeacherDash   from './TeacherDash.jsx'
-import Quiz          from './Quiz.jsx'
-import ADHDDash      from './ADHDDash.jsx'
-import DyslexiaDash  from './DyslexiaDash.jsx'
-import ASDDash       from './ASDDash.jsx'
+import TeacherLogin  from './pages/TeacherLogin.jsx'
+import StudentLogin  from './pages/StudentLogin.jsx'
+import TeacherDash   from './pages/TeacherDash.jsx'
+import Quiz          from './pages/Quiz.jsx'
+import ADHDDash      from './pages/ADHDDash.jsx'
+import DyslexiaDash  from './pages/DyslexiaDash.jsx'
+import ASDDash       from './pages/ASDDash.jsx'
 
 /*
   Global router — no external library needed for a hackathon.
