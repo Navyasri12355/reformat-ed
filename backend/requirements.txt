@@ -1,0 +1,42 @@
+# --- Core API ---
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+pydantic==2.10.3
+pydantic-settings==2.6.1
+SQLAlchemy==2.0.36
+
+# --- Auth ---
+PyJWT==2.10.1
+
+# --- Config / prompts ---
+PyYAML==6.0.2
+
+# --- Document parsing ---
+pypdf==5.1.0
+python-docx==1.1.2
+python-pptx==1.0.2
+
+# --- HTTP (used by optional OpenAI client) ---
+httpx==0.28.1
+
+# --- Postgres driver (used when DATABASE_URL points at Postgres) ---
+psycopg[binary]==3.2.3
+
+# --- Celery workers (used when TASK_BACKEND=celery) ---
+celery==5.4.0
+redis==5.2.1
+
+# --- Dev / tests ---
+pytest==8.3.4
+
+# --- Optional: real LLM transforms (works without it via local fallback) ---
+# openai==1.57.4
+
+# --- Optional: richer NLP atomisation (works without it via regex fallback) ---
+# spacy==3.8.2
+
+# --- Optional: server-side Coqui TTS with per-profile voice modulation ---
+# (browser voice with the same modulation is used automatically if absent)
+# TTS==0.22.0
+# librosa==0.10.2     # speed + pitch modulation of Coqui output

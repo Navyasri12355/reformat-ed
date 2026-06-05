@@ -1,0 +1,289 @@
+"""Structured per-format enrichment.
+
+The prose rewrite (LLM or local) tells the student *what to read*. This module
+derives the **interactive scaffolding** around it — directly from the source
+atom, so it is deterministic and identical regardless of which transform path
+ran:
+
+* ADHD  → one-line goal, a visual anchor, a per-segment concept diagram, and a
+          genuine fill-in-the-blank (cloze) check whose answer comes from the text
+* ASD   → a fixed lesson schedule, literal rewrites of any idioms found, a
+          real-world example, a concept diagram and a pre-shown rubric
+* Dyslexia → the key vocabulary to highlight + a concept diagram
+* Blended → goal + anchor + schedule + cloze check
+
+The cloze question removes a real key word from a real sentence, so it is always
+answerable from reading the segment; distractors are other terms from the same
+subject, so every option is plausible.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+
+from app.services.atomiser import SUBJECT_KEYWORDS, split_sentences
+
+# --------------------------------------------------------------------------- #
+# Static knowledge
+# --------------------------------------------------------------------------- #
+SUBJECT_ANCHOR = {
+    "biology": "🌿",
+    "chemistry": "⚗️",
+    "physics": "⚛️",
+    "mathematics": "➗",
+    "history": "📜",
+    "literature": "📖",
+    "computer_science": "💻",
+    "general": "📘",
+}
+
+# Subject "illustration" keys → the frontend draws a matching inline SVG.
+SUBJECT_ILLUSTRATION = {
+    "biology": "leaf",
+    "chemistry": "flask",
+    "physics": "atom",
+    "mathematics": "ruler",
+    "history": "scroll",
+    "literature": "book",
+    "computer_science": "chip",
+    "general": "bulb",
+}
+
+SUBJECT_REAL_WORLD = {
+    "biology": "You can see this in living things around you — a plant on a windowsill or the food you eat.",
+    "chemistry": "This happens in everyday materials, like cooking, cleaning products, or rust on metal.",
+    "physics": "You meet this every day — riding a bike, dropping a ball, or switching on a light.",
+    "mathematics": "You use this when shopping, measuring, or sharing things equally.",
+    "history": "This still shapes the country, laws, or borders you live with today.",
+    "literature": "You notice this in films and songs, not just books.",
+    "computer_science": "This runs inside the apps and games you use every day.",
+    "general": "You can find an example of this in your own daily life.",
+}
+
+# Plausible same-subject distractors for the cloze check.
+SUBJECT_TERMS = {
+    "biology": ["chloroplast", "chlorophyll", "mitochondria", "nucleus", "glucose",
+                "oxygen", "enzyme", "membrane", "organism", "photosynthesis"],
+    "chemistry": ["atom", "molecule", "electron", "compound", "reaction", "ion",
+                  "acid", "base", "bond", "element"],
+    "physics": ["force", "energy", "velocity", "mass", "acceleration", "gravity",
+                "momentum", "friction", "voltage", "current"],
+    "mathematics": ["equation", "function", "variable", "fraction", "integer",
+                    "angle", "ratio", "product", "factor", "polynomial"],
+    "history": ["empire", "revolution", "treaty", "monarchy", "democracy",
+                "colony", "dynasty", "republic", "alliance", "reform"],
+    "literature": ["metaphor", "narrator", "theme", "plot", "character", "symbol",
+                   "setting", "stanza", "rhyme", "genre"],
+    "computer_science": ["algorithm", "variable", "function", "array", "loop",
+                         "compiler", "memory", "database", "pointer", "recursion"],
+    "general": ["idea", "process", "reason", "result", "method", "cause",
+                "effect", "factor", "example", "pattern"],
+}
+
+# Common idioms → literal meaning (for ASD literal-language support).
+IDIOM_DICT: dict[str, str] = {
+    "a piece of cake": "very easy",
+    "costs an arm and a leg": "is very expensive",
+    "hit the books": "study hard",
+    "break the ice": "start a conversation",
+    "under the weather": "feeling ill",
+    "bite the bullet": "do something difficult you have been avoiding",
+    "once in a blue moon": "very rarely",
+    "the ball is in your court": "it is your turn to decide",
+    "let the cat out of the bag": "reveal a secret",
+    "on the same page": "in agreement",
+    "back to the drawing board": "start again from the beginning",
+    "cutting corners": "doing something cheaply or carelessly",
+    "in a nutshell": "in summary",
+    "the tip of the iceberg": "a small visible part of a much bigger thing",
+    "raining cats and dogs": "raining very heavily",
+}
+
+_STOPWORDS = {
+    "this", "that", "these", "those", "which", "their", "there", "where", "while",
+    "about", "into", "from", "with", "they", "them", "have", "uses", "used", "also",
+    "called", "inside", "using", "makes", "make", "takes", "take", "kind", "part",
+    "parts", "very", "many", "more", "most", "some", "what", "when", "then", "your",
+    "each", "other", "because", "around", "between", "things", "something",
+}
+
+
+# --------------------------------------------------------------------------- #
+# Public entry point
+# --------------------------------------------------------------------------- #
+def build_meta(atom: dict, output_format: str) -> dict:
+    text = atom.get("raw_text", "") or ""
+    subject = (atom.get("subject") or "general").lower()
+    if subject not in SUBJECT_ANCHOR:
+        subject = "general"
+
+    keywords = extract_keywords(text, subject)
+    diagram = build_diagram(subject, keywords)
+    illustration = SUBJECT_ILLUSTRATION[subject]
+
+    if output_format == "dyslexia_audio":
+        return {"keywords": keywords, "illustration": illustration, "diagram": diagram}
+
+    if output_format == "asd_structured":
+        return {
+            "schedule": ["Schedule", "Content", "Summary", "Quiz"],
+            "idioms": detect_idioms(text),
+            "real_world": SUBJECT_REAL_WORLD[subject],
+            "rubric": build_rubric(subject),
+            "illustration": illustration,
+            "diagram": diagram,
+        }
+
+    if output_format == "adhd_gamified":
+        return {
+            "goal": build_goal(text, subject),
+            "anchor": SUBJECT_ANCHOR[subject],
+            "illustration": illustration,
+            "diagram": diagram,
+            "poll": build_poll(text, keywords, subject),
+        }
+
+    # blended → enough scaffolding for both gamified and structured rendering
+    return {
+        "goal": build_goal(text, subject),
+        "anchor": SUBJECT_ANCHOR[subject],
+        "illustration": illustration,
+        "diagram": diagram,
+        "schedule": ["Schedule", "Content", "Summary", "Quiz"],
+        "poll": build_poll(text, keywords, subject),
+        "keywords": keywords,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Builders
+# --------------------------------------------------------------------------- #
+def extract_keywords(text: str, subject: str, limit: int = 5) -> list[str]:
+    lower = text.lower()
+    found: list[str] = []
+
+    # 1. Subject-specific vocabulary actually present in the text.
+    pattern = SUBJECT_KEYWORDS.get(subject)
+    if pattern:
+        for m in re.findall(pattern, lower):
+            if m not in found:
+                found.append(m)
+
+    # 2. Long, content-bearing words as a fallback / supplement.
+    if len(found) < limit:
+        words = re.findall(r"[A-Za-z]{6,}", lower)
+        for w in sorted(set(words), key=lambda w: -len(w)):
+            if w not in _STOPWORDS and w not in found:
+                found.append(w)
+            if len(found) >= limit:
+                break
+
+    return found[:limit] or ["idea"]
+
+
+def build_goal(text: str, subject: str) -> str:
+    first = (split_sentences(text) or [text])[0].strip()
+    words = first.split()
+    if len(words) <= 12:
+        return first
+    return " ".join(words[:10]).rstrip(".,") + "…"
+
+
+def detect_idioms(text: str) -> list[dict]:
+    lower = text.lower()
+    return [
+        {"phrase": phrase, "literal": literal}
+        for phrase, literal in IDIOM_DICT.items()
+        if phrase in lower
+    ]
+
+
+def build_rubric(subject: str) -> list[dict]:
+    topic = subject.replace("_", " ")
+    return [
+        {
+            "criterion": f"Explain the main idea of this {topic} concept",
+            "how": "In a sentence, a numbered list, OR a labelled diagram — all accepted",
+        },
+        {
+            "criterion": "Use the key terms correctly",
+            "how": "Prose, a numbered list, or a diagram — your choice",
+        },
+        {
+            "criterion": "Give one example",
+            "how": "One real-world example, in any format",
+        },
+    ]
+
+
+def build_diagram(subject: str, keywords: list[str]) -> str:
+    """A small Mermaid concept map linking this segment's key terms to the topic.
+
+    Always valid Mermaid; rendered client-side. Generated from real keywords so
+    it reflects the actual content of the segment.
+    """
+    topic = subject.replace("_", " ").title()
+    lines = ["flowchart TD", f'    TOPIC(["{topic}"])']
+    for i, kw in enumerate(keywords[:4]):
+        node = f"K{i}"
+        label = kw.replace('"', "")
+        lines.append(f'    TOPIC --> {node}["{label}"]')
+    return "\n".join(lines)
+
+
+def build_poll(text: str, keywords: list[str], subject: str) -> dict:
+    """A fill-in-the-blank (cloze) check, answerable purely from this segment.
+
+    A real key word is removed from a real sentence; the correct option is that
+    word, and the distractors are other terms from the same subject (so every
+    option is plausible, not obviously off-topic). Deterministic per atom.
+    """
+    sentences = split_sentences(text) or [text]
+    answer = ""
+    blanked = ""
+
+    # Find a sentence that contains a key word we can blank out.
+    for kw in keywords:
+        for sentence in sentences:
+            pattern = re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
+            if pattern.search(sentence) and len(sentence.split()) >= 5:
+                answer = kw
+                blanked = pattern.sub("______", sentence, count=1).strip()
+                break
+        if answer:
+            break
+
+    # Fallback: blank the longest word in the first usable sentence.
+    if not answer:
+        sentence = next((s for s in sentences if len(s.split()) >= 5), sentences[0])
+        words = re.findall(r"[A-Za-z]{4,}", sentence)
+        answer = max(words, key=len) if words else (keywords[0] if keywords else "idea")
+        blanked = re.sub(rf"\b{re.escape(answer)}\b", "______", sentence, count=1).strip()
+
+    # Same-subject distractors that are NOT the answer and NOT in this sentence.
+    pool = SUBJECT_TERMS.get(subject, SUBJECT_TERMS["general"])
+    lower_blank = blanked.lower()
+    distractors = [
+        t for t in pool
+        if t.lower() != answer.lower() and t.lower() not in lower_blank
+    ][:2]
+    # Supplement from other keywords if the pool was thin.
+    for kw in keywords:
+        if len(distractors) >= 2:
+            break
+        if kw.lower() != answer.lower() and kw.lower() not in lower_blank and kw not in distractors:
+            distractors.append(kw)
+    while len(distractors) < 2:
+        distractors.append(f"{subject} term {len(distractors) + 1}")
+
+    options = [answer, *distractors]
+    seed = int(hashlib.md5(text.encode()).hexdigest(), 16)
+    rotate = seed % len(options)
+    options = options[rotate:] + options[:rotate]
+
+    return {
+        "q": f'Fill in the blank: "{blanked}"',
+        "options": options,
+        "answer": options.index(answer),
+    }
