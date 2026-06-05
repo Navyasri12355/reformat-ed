@@ -1,0 +1,75 @@
+# Production-flavoured stack: Postgres + Redis + Celery workers.
+# For the simplest local run you do NOT need this — see README "Quick start"
+# (SQLite + inline tasks, no Docker required).
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: neuracore
+      POSTGRES_USER: neuracore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-neuracore}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  api:
+    build: ./backend
+    depends_on: [db, redis]
+    environment:
+      DATABASE_URL: postgresql+psycopg://neuracore:${POSTGRES_PASSWORD:-neuracore}@db:5432/neuracore
+      REDIS_URL: redis://redis:6379/0
+      TASK_BACKEND: celery
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports: ["8000:8000"]
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  worker_ingest:
+    build: ./backend
+    depends_on: [db, redis]
+    environment:
+      DATABASE_URL: postgresql+psycopg://neuracore:${POSTGRES_PASSWORD:-neuracore}@db:5432/neuracore
+      REDIS_URL: redis://redis:6379/0
+      TASK_BACKEND: celery
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: celery -A app.workers.celery_app worker -Q ingestion -c 4 --loglevel=info
+
+  worker_transform:
+    build: ./backend
+    depends_on: [db, redis]
+    environment:
+      DATABASE_URL: postgresql+psycopg://neuracore:${POSTGRES_PASSWORD:-neuracore}@db:5432/neuracore
+      REDIS_URL: redis://redis:6379/0
+      TASK_BACKEND: celery
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: celery -A app.workers.celery_app worker -Q transform -c 8 --loglevel=info
+
+  worker_adapt:
+    build: ./backend
+    depends_on: [db, redis]
+    environment:
+      DATABASE_URL: postgresql+psycopg://neuracore:${POSTGRES_PASSWORD:-neuracore}@db:5432/neuracore
+      REDIS_URL: redis://redis:6379/0
+      TASK_BACKEND: celery
+    command: celery -A app.workers.celery_app worker -Q adapt -c 2 --loglevel=info
+
+  beat:
+    build: ./backend
+    depends_on: [redis]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      TASK_BACKEND: celery
+    command: celery -A app.workers.celery_app beat --loglevel=info
+
+  frontend:
+    build: ./frontend
+    depends_on: [api]
+    ports: ["3000:3000"]
+
+volumes:
+  postgres_data:
