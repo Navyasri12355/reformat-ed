@@ -264,3 +264,18 @@ class SessionEvent(Base):
             name="ck_event_type",
         ),
     )
+
+
+class StudentFeedback(Base):
+    __tablename__ = "student_feedback"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    transformed_atom_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("transformed_atoms.id", ondelete="CASCADE"), nullable=False
+    )
+    student_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    transformed_atom: Mapped[TransformedAtom] = relationship()
+    student: Mapped[User] = relationship()

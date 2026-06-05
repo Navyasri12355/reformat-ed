@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../../api/client";
+import { transformsApi } from "../../api";
+import type { StudentFeedback } from "../../api/types";
 
 interface Row {
   student_id: string;
@@ -17,12 +19,15 @@ interface Row {
 export function AnalyticsPage() {
   const { documentId = "" } = useParams();
   const [rows, setRows] = useState<Row[]>([]);
+  const [feedbacks, setFeedbacks] = useState<StudentFeedback[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiClient
-      .get(`/analytics/${documentId}`)
-      .then((r) => setRows(r.data))
+    Promise.all([
+      apiClient.get(`/analytics/${documentId}`).then((r) => setRows(r.data)),
+      transformsApi.getFeedback(documentId).then(setFeedbacks),
+    ])
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [documentId]);
 
@@ -63,6 +68,34 @@ export function AnalyticsPage() {
           </tbody>
         </table>
       )}
+
+      <div style={{ marginTop: "40px" }}>
+        <h3>Student Questions & Direct Feedback</h3>
+        {feedbacks.length === 0 ? (
+          <p className="muted">No student questions or feedback submitted for this lesson yet.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th style={{ width: "20%" }}>Student</th>
+                <th style={{ width: "15%" }}>Atom (Step)</th>
+                <th style={{ width: "45%" }}>Message / Query</th>
+                <th style={{ width: "20%" }}>Submitted At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {feedbacks.map((f) => (
+                <tr key={f.id}>
+                  <td><strong>{f.student_name}</strong></td>
+                  <td>Step #{f.sequence_index + 1}</td>
+                  <td><span className="feedback-message">{f.message}</span></td>
+                  <td className="muted">{new Date(f.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

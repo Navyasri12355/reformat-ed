@@ -10,6 +10,7 @@ import type {
   StudentContent,
   TokenPair,
   User,
+  StudentFeedback,
 } from "./types";
 
 export const authApi = {
@@ -85,6 +86,15 @@ export const transformsApi = {
         rejection_note: rejectionNote,
       })
     ).data;
+  },
+  async getSupport(transformedAtomId: string, question?: string): Promise<{ response: string }> {
+    return (await apiClient.post(`/transforms/${transformedAtomId}/support`, { question })).data;
+  },
+  async submitFeedback(transformedAtomId: string, message: string): Promise<void> {
+    await apiClient.post(`/transforms/${transformedAtomId}/feedback`, { message });
+  },
+  async getFeedback(documentId: string): Promise<StudentFeedback[]> {
+    return (await apiClient.get(`/analytics/${documentId}/feedback`)).data;
   },
 };
 

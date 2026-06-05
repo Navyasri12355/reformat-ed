@@ -83,7 +83,11 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
     except ImportError:  # pragma: no cover
         return _transform_locally(atom, output_format, weights), True
 
-    client = OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds)
+    client = OpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        timeout=settings.openai_timeout_seconds,
+    )
 
     def call(fmt: str, strict: bool = False) -> str:
         system, user = prompt_loader.render(fmt, atom)

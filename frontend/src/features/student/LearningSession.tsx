@@ -5,6 +5,7 @@ import type { StudentContent, TransformedAtom } from "../../api/types";
 import { AtomRenderer } from "./AtomRenderer";
 import { StudyTools } from "./StudyTools";
 import { useSessionTracker } from "./hooks/useSessionTracker";
+import { useTTS } from "./hooks/useTTS";
 import { percent } from "../../utils/progress";
 
 export function LearningSession() {
@@ -121,6 +122,7 @@ function AtomStep({
     (atom.output_format === "adhd_gamified" || atom.output_format === "blended") &&
     !!atom.meta?.poll;
   const [pollPassed, setPollPassed] = useState(!hasPoll);
+  const [showSupport, setShowSupport] = useState(false);
 
   const onPollAnswered = (correct: boolean) => {
     if (correct) setPollPassed(true);
@@ -138,8 +140,14 @@ function AtomStep({
         <button className="btn btn-ghost" onClick={() => { tracker.markSkip(); onNext(); }}>
           Skip
         </button>
-        <button className="btn btn-ghost" onClick={tracker.markRetry}>
-          I didn't get that
+        <button
+          className={showSupport ? "btn btn-ghost btn-warn-active" : "btn btn-ghost"}
+          onClick={() => {
+            setShowSupport((v) => !v);
+            tracker.markRetry();
+          }}
+        >
+          ❓ I don't understand
         </button>
         <button
           className="btn"
@@ -152,6 +160,200 @@ function AtomStep({
         >
           Got it ✓
         </button>
+      </div>
+
+      {showSupport && <SupportSection atom={atom} />}
+    </div>
+  );
+}
+
+function SupportSection({
+  atom,
+}: {
+  atom: TransformedAtom;
+}) {
+  const [simplifiedText, setSimplifiedText] = useState("");
+  const [loadingSimplified, setLoadingSimplified] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [tutorAnswer, setTutorAnswer] = useState("");
+  const [loadingAnswer, setLoadingAnswer] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+  // Speed and Pitch overrides
+  const [rate, setRate] = useState(1.0);
+  const [pitch, setPitch] = useState(1.0);
+
+  const { speak, stop, isPlaying, supported } = useTTS({
+    format: atom.output_format,
+    rateOverride: rate,
+    pitchOverride: pitch,
+  });
+
+  useEffect(() => {
+    let active = true;
+    setLoadingSimplified(true);
+    transformsApi
+      .getSupport(atom.id)
+      .then((res) => {
+        if (active) setSimplifiedText(res.response);
+      })
+      .catch(() => {
+        if (active) setSimplifiedText("Could not fetch simplified summary. Try reading the original concept slowly.");
+      })
+      .finally(() => {
+        if (active) setLoadingSimplified(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [atom.id]);
+
+  const ask = async () => {
+    if (!question.trim()) return;
+    setLoadingAnswer(true);
+    try {
+      const res = await transformsApi.getSupport(atom.id, question);
+      setTutorAnswer(res.response);
+    } catch {
+      setTutorAnswer("The tutor is offline. Please try again or ask your teacher.");
+    } finally {
+      setLoadingAnswer(false);
+    }
+  };
+
+  const sendFeedback = async () => {
+    if (!feedback.trim()) return;
+    setSubmittingFeedback(true);
+    try {
+      await transformsApi.submitFeedback(atom.id, feedback);
+      setFeedbackSubmitted(true);
+      setFeedback("");
+    } catch {
+      alert("Could not send feedback. Please try again.");
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  return (
+    <div className="support-section">
+      <h3 className="support-title">🤖 Personalized Support Panel</h3>
+      
+      {/* 1. Even Simpler Summary */}
+      <div className="support-block">
+        <h5>Even Simpler Summary</h5>
+        {loadingSimplified ? (
+          <div className="loading-dots">Preparing a simpler breakdown…</div>
+        ) : (
+          <div>
+            <p className="support-text">{simplifiedText}</p>
+            {supported && (
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => (isPlaying ? stop() : speak(simplifiedText))}
+              >
+                {isPlaying ? "■ Stop" : "🔊 Listen to Summary"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 2. Ask Tutor */}
+      <div className="support-block">
+        <h5>Ask Your Personal Tutor</h5>
+        <p className="muted" style={{ fontSize: "13px", margin: "4px 0" }}>
+          Type a question about this step to get a response tailored to your style:
+        </p>
+        <div className="row" style={{ marginTop: "8px", width: "100%" }}>
+          <input
+            placeholder="e.g. What is the main key word here?"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && ask()}
+            style={{ flex: 1, margin: 0 }}
+          />
+          <button className="btn btn-sm" onClick={ask} disabled={loadingAnswer || !question.trim()}>
+            {loadingAnswer ? "Thinking…" : "Ask"}
+          </button>
+        </div>
+        {tutorAnswer && (
+          <div className="tutor-bubble">
+            <p style={{ margin: 0 }}><strong>Tutor:</strong> {tutorAnswer}</p>
+            {supported && (
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => (isPlaying ? stop() : speak(tutorAnswer))}
+                style={{ marginTop: "6px" }}
+              >
+                {isPlaying ? "■ Stop" : "🔊 Listen to Answer"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Audio & Voice Modulation Controls */}
+      {supported && (
+        <div className="support-block">
+          <h5>🔊 Voice Modulation Controls</h5>
+          <p className="muted" style={{ fontSize: "13px", marginBottom: "8px" }}>
+            Adjust speed (rate) and pitch dynamically to customize how the notes sound:
+          </p>
+          <div className="voice-controls-grid">
+            <div className="voice-slider-item">
+              <span className="slider-label">Speech Speed (Rate): <b>{rate.toFixed(2)}x</b></span>
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.05"
+                value={rate}
+                onChange={(e) => setRate(parseFloat(e.target.value))}
+                className="slider-input"
+              />
+            </div>
+            <div className="voice-slider-item">
+              <span className="slider-label">Voice Pitch: <b>{pitch.toFixed(2)}</b></span>
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.05"
+                value={pitch}
+                onChange={(e) => setPitch(parseFloat(e.target.value))}
+                className="slider-input"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Feedback to Teacher */}
+      <div className="support-block">
+        <h5>Direct Feedback to Teacher</h5>
+        {feedbackSubmitted ? (
+          <div className="feedback-success">✓ Sent! Your teacher will see this in their dashboard.</div>
+        ) : (
+          <div>
+            <textarea
+              placeholder="Tell your teacher exactly what was confusing about this section..."
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              style={{ fontSize: "14px", margin: "6px 0", minHeight: "60px" }}
+            />
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={sendFeedback}
+              disabled={submittingFeedback || !feedback.trim()}
+              style={{ marginTop: "4px" }}
+            >
+              {submittingFeedback ? "Sending…" : "Send to Teacher"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

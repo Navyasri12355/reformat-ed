@@ -235,3 +235,27 @@ class AtomAnalyticsRow(BaseModel):
     retries: int
     exits: int
     avg_time_ms: float | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Support & Feedback
+# --------------------------------------------------------------------------- #
+class SupportRequest(BaseModel):
+    question: str | None = None
+
+
+class SupportResponse(BaseModel):
+    response: str
+
+
+class FeedbackCreate(BaseModel):
+    message: str
+
+
+class FeedbackOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    student_name: str
+    sequence_index: int
+    message: str
+    created_at: datetime

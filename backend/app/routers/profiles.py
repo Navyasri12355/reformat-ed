@@ -19,6 +19,7 @@ from app.schemas import (
     QuizSubmission,
 )
 from app.services.quiz_engine import QUIZ_QUESTIONS, compute_profile_from_quiz
+from app.services.sync import sync_student_transforms
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
@@ -71,6 +72,7 @@ def submit_quiz(
     profile.last_calibrated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(profile)
+    sync_student_transforms(db, student_id)
     return profile
 
 
@@ -105,6 +107,7 @@ def update_profile(
     profile.last_calibrated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(profile)
+    sync_student_transforms(db, student_id)
     return profile
 
 

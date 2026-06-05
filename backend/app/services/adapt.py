@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import CognitiveProfile, CognitiveProfileSnapshot, SessionEvent, TransformedAtom
+from app.services.sync import sync_student_transforms
 
 LEARNING_RATE = 0.15  # conservative — weights shift slowly
 MIN_EVENTS = 10  # below this, not enough signal to recalibrate
@@ -161,4 +162,5 @@ def recalibrate_profile(db: Session, student_id: str, window_days: int = 30) -> 
     profile.last_calibrated_at = datetime.now(timezone.utc)
     profile.calibration_source = "auto"
     db.commit()
+    sync_student_transforms(db, student_id)
     return True

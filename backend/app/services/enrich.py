@@ -119,7 +119,7 @@ def build_meta(atom: dict, output_format: str) -> dict:
         subject = "general"
 
     keywords = extract_keywords(text, subject)
-    diagram = build_diagram(subject, keywords)
+    diagram = build_diagram(subject, keywords, text=text)
     illustration = SUBJECT_ILLUSTRATION[subject]
 
     if output_format == "dyslexia_audio":
@@ -217,12 +217,55 @@ def build_rubric(subject: str) -> list[dict]:
     ]
 
 
-def build_diagram(subject: str, keywords: list[str]) -> str:
+def _build_diagram_with_llm(text: str, subject: str) -> str | None:
+    from app.config import settings
+    if not settings.openai_api_key:
+        return None
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
+            timeout=settings.openai_timeout_seconds,
+        )
+        prompt = (
+            "You are an expert educator. Generate a valid Mermaid.js flowchart (using `flowchart TD` or `graph TD`) "
+            "that visually represents the key concepts and relationships described in the educational text below. "
+            "Follow these rules strictly:\n"
+            "1. Output ONLY the raw Mermaid code block (do not wrap in markdown ``` or include extra text). It must start with `flowchart TD` or `graph TD`.\n"
+            "2. Keep the diagram extremely simple, clear, and easy to read (3-6 nodes max). Do not use special characters or HTML inside node labels.\n"
+            "3. Enclose node labels in double quotes, e.g. A[\"Label\"].\n"
+            "4. Ensure there are no syntax errors.\n\n"
+            f"Subject: {subject}\n"
+            f"Text:\n{text}"
+        )
+        resp = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=300,
+        )
+        code = (resp.choices[0].message.content or "").strip()
+        code = re.sub(r"^```(mermaid)?\s*", "", code, flags=re.IGNORECASE)
+        code = re.sub(r"```$", "", code).strip()
+        if code.startswith(("flowchart", "graph")):
+            return code
+    except Exception:
+        pass
+    return None
+
+
+def build_diagram(subject: str, keywords: list[str], text: str = "") -> str:
     """A small Mermaid concept map linking this segment's key terms to the topic.
 
     Always valid Mermaid; rendered client-side. Generated from real keywords so
     it reflects the actual content of the segment.
     """
+    if text:
+        llm_diagram = _build_diagram_with_llm(text, subject)
+        if llm_diagram:
+            return llm_diagram
+
     topic = subject.replace("_", " ").title()
     lines = ["flowchart TD", f'    TOPIC(["{topic}"])']
     for i, kw in enumerate(keywords[:4]):

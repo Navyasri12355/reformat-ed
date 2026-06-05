@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     # If openai_api_key is empty, the engine uses a deterministic local
     # rule-based transformer so the whole product works offline.
     openai_api_key: str = ""
+    openai_base_url: str | None = None
     openai_model: str = "gpt-4o-2024-11-20"
     openai_timeout_seconds: int = 45
     openai_temperature: float = 0.4

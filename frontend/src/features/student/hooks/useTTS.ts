@@ -5,6 +5,8 @@ interface TTSOptions {
   format?: string;
   onWordHighlight?: (wordIndex: number) => void;
   onEnd?: () => void;
+  rateOverride?: number;
+  pitchOverride?: number;
 }
 
 /**
@@ -25,7 +27,7 @@ const BROWSER_VOICE: Record<string, { rate: number; pitch: number }> = {
  * the Web Speech API with the same rate/pitch (and word-by-word highlighting)
  * when Coqui isn't available.
  */
-export function useTTS({ format = "asd_structured", onWordHighlight, onEnd }: TTSOptions = {}) {
+export function useTTS({ format = "asd_structured", onWordHighlight, onEnd, rateOverride, pitchOverride }: TTSOptions = {}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -58,8 +60,8 @@ export function useTTS({ format = "asd_structured", onWordHighlight, onEnd }: TT
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       const v = BROWSER_VOICE[format] ?? BROWSER_VOICE.asd_structured;
-      u.rate = v.rate;
-      u.pitch = v.pitch;
+      u.rate = rateOverride !== undefined && rateOverride !== null ? rateOverride : v.rate;
+      u.pitch = pitchOverride !== undefined && pitchOverride !== null ? pitchOverride : v.pitch;
       u.volume = 1.0;
       if (onWordHighlight) {
         u.onboundary = (event) => {
@@ -80,12 +82,16 @@ export function useTTS({ format = "asd_structured", onWordHighlight, onEnd }: TT
       setIsPlaying(true);
       setIsPaused(false);
     },
-    [format, onWordHighlight, onEnd],
+    [format, onWordHighlight, onEnd, rateOverride, pitchOverride],
   );
 
   const speak = useCallback(
     async (text: string) => {
       stop();
+      if (rateOverride !== undefined || pitchOverride !== undefined) {
+        speakBrowser(text);
+        return;
+      }
       // Try server-side Coqui synthesis first.
       try {
         const res = await apiClient.post(
@@ -112,7 +118,7 @@ export function useTTS({ format = "asd_structured", onWordHighlight, onEnd }: TT
         speakBrowser(text);
       }
     },
-    [format, stop, onEnd, speakBrowser],
+    [format, stop, onEnd, speakBrowser, rateOverride, pitchOverride],
   );
 
   const pause = useCallback(() => {

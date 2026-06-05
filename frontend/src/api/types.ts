@@ -127,3 +127,11 @@ export interface Session {
   total_atoms: number | null;
   atoms_completed: number;
 }
+
+export interface StudentFeedback {
+  id: string;
+  student_name: string;
+  sequence_index: number;
+  message: string;
+  created_at: string;
+}

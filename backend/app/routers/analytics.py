@@ -14,8 +14,9 @@ from app.models import (
     SourceDocument,
     TransformedAtom,
     User,
+    StudentFeedback,
 )
-from app.schemas import AtomAnalyticsRow
+from app.schemas import AtomAnalyticsRow, FeedbackOut
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -78,4 +79,43 @@ def document_analytics(
             avg_time_ms=float(r.avg_time_ms) if r.avg_time_ms is not None else None,
         )
         for r in rows
+    ]
+
+
+@router.get("/{document_id}/feedback", response_model=list[FeedbackOut])
+def get_document_feedback(
+    document_id: str,
+    educator: User = Depends(require_educator),
+    db: Session = Depends(get_db),
+) -> list[FeedbackOut]:
+    doc = db.get(SourceDocument, document_id)
+    if doc is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    if educator.role != "admin" and doc.uploaded_by != educator.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not your document")
+
+    feedbacks = db.execute(
+        select(
+            StudentFeedback.id,
+            User.display_name.label("student_name"),
+            CurriculumAtom.sequence_index,
+            StudentFeedback.message,
+            StudentFeedback.created_at,
+        )
+        .join(User, User.id == StudentFeedback.student_id)
+        .join(TransformedAtom, TransformedAtom.id == StudentFeedback.transformed_atom_id)
+        .join(CurriculumAtom, CurriculumAtom.id == TransformedAtom.atom_id)
+        .where(CurriculumAtom.document_id == document_id)
+        .order_by(StudentFeedback.created_at.desc())
+    ).all()
+
+    return [
+        FeedbackOut(
+            id=f.id,
+            student_name=f.student_name,
+            sequence_index=f.sequence_index,
+            message=f.message,
+            created_at=f.created_at,
+        )
+        for f in feedbacks
     ]

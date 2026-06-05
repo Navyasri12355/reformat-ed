@@ -18,6 +18,7 @@ from app.models import (
     SourceDocument,
     TransformedAtom,
     User,
+    StudentFeedback,
 )
 from app.schemas import (
     ReviewDecision,
@@ -27,7 +28,11 @@ from app.schemas import (
     TransformBatchResponse,
     TransformedAtomOut,
     TransformRequest,
+    SupportRequest,
+    SupportResponse,
+    FeedbackCreate,
 )
+from app.config import settings
 from app.services.transformer import clean_for_tts
 from app.tasks import run_transform
 
@@ -209,3 +214,110 @@ def review_transform(
     ta.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     return {"transformed_atom_id": ta.id, "review_status": ta.review_status}
+
+
+def generate_support_response(ta: TransformedAtom, question: str | None, db: Session) -> str:
+    output_format = ta.output_format
+
+    if settings.openai_api_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_base_url,
+                timeout=settings.openai_timeout_seconds,
+            )
+
+            if question:
+                system_prompt = (
+                    f"You are a supportive, friendly neurodivergent-friendly tutor for a student. "
+                    f"The student's preferred format is {output_format} (ASD/ADHD/dyslexia). "
+                    f"Answer the student's question about the topic in a way that matches this learning style: "
+                    f"- For asd_structured: literal, clear, structured, step-by-step, no idioms/metaphors. "
+                    f"- For adhd_gamified: short, punchy, engaging, action-oriented, highlighting key points. "
+                    f"- For dyslexia_audio: short sentences (max 15 words), simple vocabulary, easy to read/listen. "
+                    f"- For blended: balanced, short steps, clear goal. "
+                    f"Keep the answer concise (under 120 words)."
+                )
+                user_prompt = (
+                    f"Here is the curriculum content they are reading:\n"
+                    f"---\n{ta.transformed_text}\n---\n\n"
+                    f"Student's question:\n\"{question}\"\n\n"
+                    f"Please answer their question directly, accurately, and tailored to their profile style."
+                )
+            else:
+                system_prompt = (
+                    f"You are a supportive, friendly neurodivergent-friendly tutor. "
+                    f"Explain the following text in an even simpler, more accessible way (using an easy analogy or breaking it down further). "
+                    f"Tailor the explanation format to the student's preferred format: {output_format}.\n"
+                    f"- For asd_structured: literal, structured, step-by-step. "
+                    f"- For adhd_gamified: brief challenges, active second-person voice. "
+                    f"- For dyslexia_audio: short paragraphs, short sentences (max 15 words), plain vocabulary. "
+                    f"Keep it very brief (under 150 words)."
+                )
+                user_prompt = (
+                    f"Text to simplify:\n"
+                    f"---\n{ta.transformed_text}\n---"
+                )
+
+            resp = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+                temperature=0.4,
+                max_tokens=300,
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception:
+            pass
+
+    # Deterministic local fallback
+    if question:
+        return (
+            f"Here is a simple response to your question: '{question}'. "
+            f"In this section, the main concept is: "
+            f"'{ta.transformed_text[:200]}...'. "
+            f"Try reading this section slowly, or adjust the voice speed below to listen to it again."
+        )
+    else:
+        return (
+            f"Here is an even simpler summary of this section:\n"
+            f"• Concept: The key fact is described in the text.\n"
+            f"• Detail: {ta.transformed_text[:150]}...\n"
+            f"• Action: Take a moment to review this idea, or listen to the audio readout at a slower speed."
+        )
+
+
+@router.post("/{transformed_atom_id}/support", response_model=SupportResponse)
+def get_tutor_support(
+    transformed_atom_id: str,
+    body: SupportRequest,
+    actor: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SupportResponse:
+    ta = db.get(TransformedAtom, transformed_atom_id)
+    if ta is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Transformed atom not found")
+
+    response_text = generate_support_response(ta, body.question, db)
+    return SupportResponse(response=response_text)
+
+
+@router.post("/{transformed_atom_id}/feedback", status_code=status.HTTP_201_CREATED)
+def submit_student_feedback(
+    transformed_atom_id: str,
+    body: FeedbackCreate,
+    actor: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    ta = db.get(TransformedAtom, transformed_atom_id)
+    if ta is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Transformed atom not found")
+
+    feedback = StudentFeedback(
+        transformed_atom_id=ta.id,
+        student_id=actor.id,
+        message=body.message.strip(),
+    )
+    db.add(feedback)
+    db.commit()
+    return {"status": "success", "feedback_id": feedback.id}
