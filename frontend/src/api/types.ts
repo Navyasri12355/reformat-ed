@@ -55,6 +55,35 @@ export interface QuizQuestion {
 
 export type QuizAnswer = "never" | "sometimes" | "often" | "always";
 
+export interface PollMeta {
+  q: string;
+  options: string[];
+  answer: number;
+}
+
+export interface IdiomMeta {
+  phrase: string;
+  literal: string;
+}
+
+export interface RubricRow {
+  criterion: string;
+  how: string;
+}
+
+export interface AtomMeta {
+  goal?: string;
+  anchor?: string;
+  illustration?: string;
+  diagram?: string;
+  poll?: PollMeta;
+  keywords?: string[];
+  schedule?: string[];
+  idioms?: IdiomMeta[];
+  real_world?: string;
+  rubric?: RubricRow[];
+}
+
 export interface TransformedAtom {
   id: string;
   atom_id: string;
@@ -62,6 +91,7 @@ export interface TransformedAtom {
   output_format: OutputFormat;
   transformed_text: string;
   audio_script: string | null;
+  meta: AtomMeta | null;
   review_status: ReviewStatus;
 }
 

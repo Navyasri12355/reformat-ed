@@ -1,79 +1,135 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiClient } from "../../../api/client";
 
 interface TTSOptions {
+  format?: string;
   onWordHighlight?: (wordIndex: number) => void;
   onEnd?: () => void;
 }
 
-/** Thin wrapper around the Web Speech API with word-boundary highlighting. */
-export function useTTS({ onWordHighlight, onEnd }: TTSOptions = {}) {
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+/**
+ * Per-profile browser-voice modulation. Mirrors the backend's VOICE_PROFILES so
+ * the Web Speech fallback sounds the same as the Coqui path:
+ *  • dyslexia → slow & clear   • ADHD → bright & faster   • ASD → calm & steady
+ */
+const BROWSER_VOICE: Record<string, { rate: number; pitch: number }> = {
+  dyslexia_audio: { rate: 0.8, pitch: 1.0 },
+  adhd_gamified: { rate: 1.08, pitch: 1.12 },
+  asd_structured: { rate: 0.92, pitch: 0.98 },
+  blended: { rate: 0.95, pitch: 1.04 },
+};
+
+/**
+ * Voice hook with per-neurodivergent-profile modulation. Tries server-side
+ * Coqui TTS first (richer, profile-tuned audio); transparently falls back to
+ * the Web Speech API with the same rate/pitch (and word-by-word highlighting)
+ * when Coqui isn't available.
+ */
+export function useTTS({ format = "asd_structured", onWordHighlight, onEnd }: TTSOptions = {}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const [engine, setEngine] = useState<"coqui" | "browser">("browser");
+  const supported =
+    typeof window !== "undefined" && ("speechSynthesis" in window || "Audio" in window);
 
-  const speak = useCallback(
+  const cleanupAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }, []);
+
+  const stop = useCallback(() => {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    cleanupAudio();
+    setIsPlaying(false);
+    setIsPaused(false);
+  }, [cleanupAudio]);
+
+  const speakBrowser = useCallback(
     (text: string) => {
-      if (!supported) return;
+      if (!("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.85;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(
-        (v) => v.lang.startsWith("en") && (v.name.includes("Google") || v.name.includes("Alex")),
-      );
-      if (preferred) utterance.voice = preferred;
-
+      const u = new SpeechSynthesisUtterance(text);
+      const v = BROWSER_VOICE[format] ?? BROWSER_VOICE.asd_structured;
+      u.rate = v.rate;
+      u.pitch = v.pitch;
+      u.volume = 1.0;
       if (onWordHighlight) {
-        utterance.onboundary = (event) => {
+        u.onboundary = (event) => {
           if (event.name === "word") {
-            const preceding = text.substring(0, event.charIndex);
-            const wordIndex = preceding.split(/\s+/).filter(Boolean).length;
-            onWordHighlight(wordIndex);
+            const idx = text.substring(0, event.charIndex).split(/\s+/).filter(Boolean).length;
+            onWordHighlight(idx);
           }
         };
       }
-      utterance.onend = () => {
+      u.onend = () => {
         setIsPlaying(false);
         setIsPaused(false);
         onEnd?.();
       };
-      utterance.onerror = () => setIsPlaying(false);
-
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+      u.onerror = () => setIsPlaying(false);
+      setEngine("browser");
+      window.speechSynthesis.speak(u);
       setIsPlaying(true);
       setIsPaused(false);
     },
-    [supported, onWordHighlight, onEnd],
+    [format, onWordHighlight, onEnd],
+  );
+
+  const speak = useCallback(
+    async (text: string) => {
+      stop();
+      // Try server-side Coqui synthesis first.
+      try {
+        const res = await apiClient.post(
+          "/tts/audio",
+          { text, format },
+          { responseType: "arraybuffer" },
+        );
+        const blob = new Blob([res.data], { type: "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        objectUrlRef.current = url;
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => {
+          setIsPlaying(false);
+          setIsPaused(false);
+          onEnd?.();
+        };
+        setEngine("coqui");
+        await audio.play();
+        setIsPlaying(true);
+        setIsPaused(false);
+      } catch {
+        // 503 (Coqui not installed) / network / autoplay → browser voice.
+        speakBrowser(text);
+      }
+    },
+    [format, stop, onEnd, speakBrowser],
   );
 
   const pause = useCallback(() => {
-    if (!supported) return;
-    window.speechSynthesis.pause();
+    if (engine === "coqui" && audioRef.current) audioRef.current.pause();
+    else if ("speechSynthesis" in window) window.speechSynthesis.pause();
     setIsPlaying(false);
     setIsPaused(true);
-  }, [supported]);
+  }, [engine]);
 
   const resume = useCallback(() => {
-    if (!supported) return;
-    window.speechSynthesis.resume();
+    if (engine === "coqui" && audioRef.current) void audioRef.current.play();
+    else if ("speechSynthesis" in window) window.speechSynthesis.resume();
     setIsPlaying(true);
     setIsPaused(false);
-  }, [supported]);
+  }, [engine]);
 
-  const stop = useCallback(() => {
-    if (!supported) return;
-    window.speechSynthesis.cancel();
-    setIsPlaying(false);
-    setIsPaused(false);
-  }, [supported]);
-
-  // Stop any speech if the component using this hook unmounts.
   useEffect(() => () => stop(), [stop]);
 
-  return { speak, pause, resume, stop, isPlaying, isPaused, supported };
+  return { speak, pause, resume, stop, isPlaying, isPaused, supported, engine };
 }

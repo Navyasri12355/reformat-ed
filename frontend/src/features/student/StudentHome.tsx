@@ -58,7 +58,12 @@ export function StudentHome() {
         </div>
       )}
 
-      <h2>Your lessons</h2>
+      <div className="row-between">
+        <h2>Your lessons</h2>
+        <a className="btn btn-sm btn-ghost" href="/simulator.html" target="_blank" rel="noreferrer">
+          Explore all formats ↗
+        </a>
+      </div>
       {docs.length === 0 && <p className="muted">No lessons yet. Your teacher will upload some.</p>}
       <div className="doc-grid">
         {docs.map((d) => (

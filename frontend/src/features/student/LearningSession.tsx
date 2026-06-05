@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { sessionsApi, transformsApi } from "../../api";
 import type { StudentContent, TransformedAtom } from "../../api/types";
 import { AtomRenderer } from "./AtomRenderer";
+import { StudyTools } from "./StudyTools";
 import { useSessionTracker } from "./hooks/useSessionTracker";
 import { percent } from "../../utils/progress";
 
@@ -47,6 +48,15 @@ export function LearningSession() {
 
   const atoms = content.atoms;
   const total = atoms.length;
+  // ADHD support tools appear when ADHD is the dominant trait or any atom is
+  // delivered in a gamified/blended format.
+  const snap = content.profile_snapshot;
+  const adhdDominant =
+    (snap.adhd_weight ?? 0) >= (snap.dyslexia_weight ?? 0) &&
+    (snap.adhd_weight ?? 0) >= (snap.asd_weight ?? 0) &&
+    (snap.adhd_weight ?? 0) > 0;
+  const showTools =
+    adhdDominant || atoms.some((a) => a.output_format === "adhd_gamified" || a.output_format === "blended");
 
   if (done) {
     return (
@@ -75,8 +85,10 @@ export function LearningSession() {
         onNext={goNext}
       />
       <div className="learn-meta muted">
-        Atom {index + 1} of {total}
+        Segment {index + 1} of {total}
+        {showTools && " · 3–5 min micro-segment"}
       </div>
+      {showTools && <StudyTools />}
     </div>
   );
 }
@@ -105,9 +117,23 @@ function AtomStep({
     transformedAtomId: atom.id,
   });
 
+  const hasPoll =
+    (atom.output_format === "adhd_gamified" || atom.output_format === "blended") &&
+    !!atom.meta?.poll;
+  const [pollPassed, setPollPassed] = useState(!hasPoll);
+
+  const onPollAnswered = (correct: boolean) => {
+    if (correct) setPollPassed(true);
+    else tracker.markRetry();
+  };
+
   return (
     <div className="card atom-card">
-      <AtomRenderer atom={atom} onAudioPlay={tracker.markAudioPlay} />
+      <AtomRenderer
+        atom={atom}
+        onAudioPlay={tracker.markAudioPlay}
+        onPollAnswered={onPollAnswered}
+      />
       <div className="atom-controls">
         <button className="btn btn-ghost" onClick={() => { tracker.markSkip(); onNext(); }}>
           Skip
@@ -117,6 +143,8 @@ function AtomStep({
         </button>
         <button
           className="btn"
+          disabled={!pollPassed}
+          title={pollPassed ? "" : "Answer the quick check first"}
           onClick={() => {
             tracker.markComplete();
             onNext();

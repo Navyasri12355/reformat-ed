@@ -21,6 +21,33 @@ points) **quietly recalibrate the profile** over time.
 
 ---
 
+## 👀 For evaluators — try it in 30 seconds, no install
+
+> **Open [`docs/simulator.html`](docs/simulator.html) in any browser.**
+
+It's a fully self-contained prototype (no backend, no login). Switch between
+**Maya (Dyslexia)**, **Leo (ADHD)**, **Sam (ASD)** and **Ava (Blended)** and watch
+the *same* photosynthesis lesson rebuild itself live:
+
+- **Dyslexia** → OpenDyslexic font, colour-coded syllables, highlighted key
+  words, chunked + numbered sections, click-to-listen audio.
+- **ADHD** → 3–5 min micro-segments with one explicit goal, a visual anchor
+  before each, progress bar + token reward, 1-question micro-poll, a floating
+  **Pomodoro timer**, **distraction-free mode** (press <kbd>F</kbd>) and a
+  **sticky-note impulse pad**.
+- **ASD** → numbered visual schedule, identical schedule→content→summary→quiz
+  template, **idioms flagged and rewritten literally** (hover the dotted text),
+  a "show me a real-world example" button, rubric shown *before* the task, and
+  zero autoplay / flashing / pop-ups.
+
+Diagrams (system flow, sequence, class, state — Mermaid/UML) are in
+**[`docs/diagrams.md`](docs/diagrams.md)**.
+
+The same accessibility treatment (OpenDyslexic, colour-coded numbered chunks)
+also ships in the real React app's `DyslexiaFormat`.
+
+---
+
 ## What's in this repo
 
 ```
@@ -47,6 +74,31 @@ docker-compose.yml   Production-flavoured stack (Postgres + Redis + Celery)
 - **Frontend** — auth, onboarding quiz, four format renderers (with Web Speech
   TTS + word highlighting), passive signal tracking, educator upload / review /
   analytics.
+- **Integrated accessibility features** (live in the React app, fed by the
+  backend's structured `meta` from `services/enrich.py`):
+  - *ADHD* → visual anchor + single explicit goal per micro-segment, a
+    one-question micro-poll that gates completion, and floating **Pomodoro**,
+    **distraction-free mode** (press <kbd>F</kbd>) and **sticky-note pad**.
+  - *Dyslexia* → OpenDyslexic font, colour-coded syllables, **keyword highlights
+    driven by the backend**, chunked + numbered sections, per-chunk audio.
+  - *ASD* → numbered schedule, **idioms flagged + rewritten literally**,
+    real-world example button, and a rubric shown before the task.
+  - All verified end-to-end in the running app for ADHD, Dyslexia and ASD.
+- **Meaningful questions** — the check after each segment is a real
+  **fill-in-the-blank (cloze)** built by removing a key word from a sentence in
+  the segment, with distractors drawn from the *same subject* (so every option
+  is plausible and the question is answerable purely from reading).
+- **Pictures + concept maps in the lesson** — each segment shows an inline SVG
+  illustration (subject-themed) and a per-segment **Mermaid concept map**
+  generated from the segment's key terms (lazy-loaded, collapsible).
+- **Per-profile voice (Coqui TTS)** — `services/tts.py` defines a distinct voice
+  per profile (dyslexia = slow & clear, ADHD = bright & faster, ASD = calm &
+  steady). Audio is synthesised server-side by **Coqui TTS** when installed
+  (`pip install TTS`, modulated with librosa), and otherwise spoken by the
+  browser voice using the *same* rate/pitch — so the modulation is identical
+  either way. `GET /tts/profile`, `POST /tts/audio`.
+- **The HTML simulator is reachable from the app** (the student home's
+  "Explore all formats ↗" opens `/simulator.html`).
 - **Tests** — 29 backend tests (incl. a full upload→deliver→signal e2e) and a
   frontend unit + build check, all green.
 
@@ -98,6 +150,17 @@ Open <http://localhost:3000>. The dev server proxies `/api` → `localhost:8000`
 4. As the **student** → "Start learning" → step through the adapted atoms.
    Signals are recorded as you go; **View analytics** shows them to the educator.
 
+**Shortcut — jump straight into one profile.** With the backend running:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe scripts\seed_live_demo.py asd   # or: adhd | dyslexia
+```
+
+It uploads a sample lesson, builds a profile, transforms and approves the
+content, then prints a `document_id` + student tokens so you can open
+`/learn/<document_id>` directly.
+
 ---
 
 ## Using real LLM transforms (optional)
@@ -111,7 +174,37 @@ $env:OPENAI_API_KEY = "sk-..."
 ```
 
 Every LLM output still passes through the same validator, with a strict retry
-and a guaranteed local fallback if validation fails.
+and a guaranteed local fallback if validation fails. The interactive scaffolding
+(cloze question, concept map, illustration, idioms, rubric) is computed
+deterministically from the source atom, so it is identical and correct on either
+path.
+
+---
+
+## Enabling server-side Coqui TTS (optional)
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m pip install TTS librosa
+# first run downloads the model (hundreds of MB)
+```
+
+With `TTS` installed, `POST /tts/audio` returns WAV synthesised by Coqui and
+modulated per profile (dyslexia slower, ADHD brighter/faster, ASD calmer). Without
+it, the endpoint returns 503 and the frontend automatically uses the browser
+voice with the same rate/pitch — so per-profile modulation works regardless.
+
+## Frictionless single-user demo
+
+The educator review queue means a student's prepared content needs approval
+before they can see it. For a solo walkthrough (no second account), start the
+backend with auto-approve so **Prepare for me → Start learning** works directly:
+
+```powershell
+cd backend
+$env:AUTO_APPROVE_ALL = "true"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
 
 ---
 
