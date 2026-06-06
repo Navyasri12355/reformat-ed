@@ -18,16 +18,25 @@ export function ADHDFormat({
   const meta = atom.meta ?? {};
   const lines = atom.transformed_text.split("\n").filter((l) => l.trim());
   const goal = meta.goal ?? strip(lines.find((l) => /mission brief|goal/i.test(l)) ?? "");
-  const challenges = lines.filter((l) => /^challenge\s*\d/i.test(l));
   const cue = lines.find((l) => /progress cue/i.test(l));
-  const body = challenges.length ? challenges : lines.filter((l) => !/mission brief|progress cue/i.test(l));
+  // Group each "Challenge N:" with its following explanation lines; fall back to
+  // sentence chunks if the model used no markers, so content is never dropped.
+  const grouped = groupChallenges(atom.transformed_text);
+  const body = grouped.length
+    ? grouped
+    : lines
+        .filter((l) => !/mission brief|progress cue/i.test(l))
+        .join(" ")
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 1);
 
   return (
     <div className="fmt fmt-adhd">
       <div className="anchor-wrap">
         <Illustration kind={meta.illustration} />
       </div>
-      {goal && <div className="goal">🎯 Goal: {goal}</div>}
+      {goal && <div className="goal">Goal: {goal}</div>}
 
       <ConceptDiagram code={meta.diagram} />
 
@@ -35,13 +44,13 @@ export function ADHDFormat({
         {body.map((line, i) => (
           <div className="challenge-card" key={i}>
             <span className="challenge-num">{i + 1}</span>
-            <p>{strip(line)}</p>
+            <p>{line}</p>
           </div>
         ))}
       </div>
 
       {meta.poll && <MicroPoll poll={meta.poll} onAnswered={onPollAnswered} />}
-      {cue && <div className="progress-cue">⚡ {strip(cue)}</div>}
+      {cue && <div className="progress-cue">{strip(cue)}</div>}
     </div>
   );
 }
@@ -87,4 +96,25 @@ export function MicroPoll({
 
 function strip(line: string): string {
   return line.replace(/^(mission brief:|challenge\s*\d+:|progress cue:|goal:)/i, "").trim();
+}
+
+/** Group each "Challenge N:" marker with the explanation lines that follow it. */
+function groupChallenges(text: string): string[] {
+  const out: string[] = [];
+  let current: string | null = null;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^progress cue/i.test(line)) break;
+    if (/^mission brief/i.test(line)) continue;
+    const m = line.match(/^challenge\s*\d+\s*[:.)-]?\s*/i);
+    if (m) {
+      if (current) out.push(current.trim());
+      current = line.slice(m[0].length).trim();
+    } else if (current !== null) {
+      current += " " + line;
+    }
+  }
+  if (current) out.push(current.trim());
+  return out.filter(Boolean);
 }

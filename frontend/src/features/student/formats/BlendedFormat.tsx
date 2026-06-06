@@ -21,8 +21,18 @@ export function BlendedFormat({
   const meta = atom.meta ?? {};
   const lines = atom.transformed_text.split("\n").map((l) => l.trim()).filter(Boolean);
   const goal = meta.goal ?? lines.find((l) => /mission brief/i.test(l))?.replace(/^mission brief:/i, "").trim();
-  const steps = lines.filter((l) => /^step\s*\d/i.test(l)).map((l) => l.replace(/^step\s*\d+:/i, "").trim());
+  const markerSteps = lines.filter((l) => /^step\s*\d/i.test(l)).map((l) => l.replace(/^step\s*\d+:/i, "").trim());
   const cue = lines.find((l) => /progress cue/i.test(l));
+  // Resilient fallback: if no "Step N:" markers, show the reframed prose as
+  // sentence steps so the content is never dropped.
+  const steps = markerSteps.length
+    ? markerSteps
+    : lines
+        .filter((l) => !/mission brief|progress cue|what you will learn|what you learned/i.test(l))
+        .join(" ")
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 1);
 
   const { speak, stop, isPlaying, supported } = useTTS({ format: "blended" });
   const script = atom.audio_script || atom.transformed_text;
@@ -32,7 +42,7 @@ export function BlendedFormat({
       <div className="anchor-wrap">
         <Illustration kind={meta.illustration} />
       </div>
-      {goal && <div className="mission-brief">🎯 {goal}</div>}
+      {goal && <div className="mission-brief">{goal}</div>}
       <ConceptDiagram code={meta.diagram} />
 
 
@@ -40,11 +50,11 @@ export function BlendedFormat({
         <div className="audio-bar">
           {!isPlaying ? (
             <button className="btn btn-sm" onClick={() => { onAudioPlay?.(); speak(script); }}>
-              ▶ Listen
+              Listen
             </button>
           ) : (
             <button className="btn btn-sm btn-ghost" onClick={stop}>
-              ■ Stop
+              Stop
             </button>
           )}
         </div>
@@ -57,7 +67,7 @@ export function BlendedFormat({
       </ol>
 
       {meta.poll && <MicroPoll poll={meta.poll} onAnswered={onPollAnswered} />}
-      {cue && <div className="progress-cue">⚡ {cue.replace(/^progress cue:/i, "").trim()}</div>}
+      {cue && <div className="progress-cue">{cue.replace(/^progress cue:/i, "").trim()}</div>}
     </div>
   );
 }

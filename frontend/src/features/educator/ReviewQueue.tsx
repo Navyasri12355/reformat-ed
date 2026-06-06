@@ -38,7 +38,7 @@ export function ReviewQueue() {
         <h2>Review queue</h2>
         <span className="muted">{total} pending</span>
       </div>
-      {items.length === 0 && <p className="muted">Nothing to review. 🎉</p>}
+      {items.length === 0 && <p className="muted">Nothing to review.</p>}
       {items.map((it) => (
         <div className="card review-item" key={it.transformed_atom_id}>
           <div className="review-cols">

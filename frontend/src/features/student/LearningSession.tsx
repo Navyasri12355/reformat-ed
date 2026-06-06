@@ -16,21 +16,44 @@ export function LearningSession() {
   const [index, setIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [preparing, setPreparing] = useState(true);
 
+  // Poll for content: segments are committed one-by-one as they generate, so we
+  // keep refreshing until the count stabilises (transform finished).
   useEffect(() => {
     let active = true;
     (async () => {
+      let session;
       try {
-        const [data, session] = await Promise.all([
-          transformsApi.studentContent(documentId),
-          sessionsApi.start(documentId),
-        ]);
-        if (!active) return;
-        setContent(data);
-        setSessionId(session.id);
+        session = await sessionsApi.start(documentId);
       } catch {
-        if (active) setError("Could not load your content. Has it been approved yet?");
+        if (active) setError("Could not start a learning session. Please try again.");
+        return;
       }
+      if (!active) return;
+      setSessionId(session.id);
+
+      let prevCount = -1;
+      let stable = 0;
+      for (let i = 0; i < 60 && active; i++) {
+        try {
+          const data = await transformsApi.studentContent(documentId);
+          if (!active) return;
+          setContent(data);
+          const n = data.atoms.length;
+          if (n > 0 && n === prevCount) {
+            stable += 1;
+            if (stable >= 2) break; // count steady → generation done
+          } else {
+            stable = 0;
+          }
+          prevCount = n;
+        } catch {
+          /* transient; keep polling */
+        }
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+      if (active) setPreparing(false);
     })();
     return () => {
       active = false;
@@ -38,12 +61,20 @@ export function LearningSession() {
   }, [documentId]);
 
   if (error) return <div className="card center">{error}</div>;
-  if (!content || !sessionId) return <div className="center muted">Preparing your lesson…</div>;
+  if (!content || !sessionId)
+    return <div className="center muted">Preparing your personalised lesson…</div>;
   if (content.atoms.length === 0)
     return (
       <div className="card center">
-        <p>No approved content yet. Your teacher needs to approve it first.</p>
-        <button className="btn" onClick={() => navigate("/")}>Back</button>
+        {preparing ? (
+          <>
+            <p>Building your personalised version…</p>
+            <p className="muted">Segments appear here as soon as they are ready.</p>
+          </>
+        ) : (
+          <p>No content is ready yet. Tap “Prepare for me” on the lesson first.</p>
+        )}
+        <button className="btn btn-ghost" onClick={() => navigate("/")}>Back</button>
       </div>
     );
 
@@ -62,7 +93,7 @@ export function LearningSession() {
   if (done) {
     return (
       <div className="card center">
-        <h2>Lesson complete! 🎉</h2>
+        <h2>Lesson complete!</h2>
         <p className="muted">Great work. We'll keep tuning this to how you learn best.</p>
         <button className="btn" onClick={async () => { await sessionsApi.end(sessionId); navigate("/"); }}>
           Finish
@@ -147,7 +178,7 @@ function AtomStep({
             tracker.markRetry();
           }}
         >
-          ❓ I don't understand
+          I don't understand
         </button>
         <button
           className="btn"
@@ -158,7 +189,7 @@ function AtomStep({
             onNext();
           }}
         >
-          Got it ✓
+          Got it
         </button>
       </div>
 
@@ -239,7 +270,7 @@ function SupportSection({
 
   return (
     <div className="support-section">
-      <h3 className="support-title">🤖 Personalized Support Panel</h3>
+      <h3 className="support-title">Personalized Support Panel</h3>
       
       {/* 1. Even Simpler Summary */}
       <div className="support-block">
@@ -254,7 +285,7 @@ function SupportSection({
                 className="btn btn-sm btn-ghost"
                 onClick={() => (isPlaying ? stop() : speak(simplifiedText))}
               >
-                {isPlaying ? "■ Stop" : "🔊 Listen to Summary"}
+                {isPlaying ? "Stop" : "Listen to Summary"}
               </button>
             )}
           </div>
@@ -288,7 +319,7 @@ function SupportSection({
                 onClick={() => (isPlaying ? stop() : speak(tutorAnswer))}
                 style={{ marginTop: "6px" }}
               >
-                {isPlaying ? "■ Stop" : "🔊 Listen to Answer"}
+                {isPlaying ? "Stop" : "Listen to Answer"}
               </button>
             )}
           </div>
@@ -298,7 +329,7 @@ function SupportSection({
       {/* 3. Audio & Voice Modulation Controls */}
       {supported && (
         <div className="support-block">
-          <h5>🔊 Voice Modulation Controls</h5>
+          <h5>Voice Modulation Controls</h5>
           <p className="muted" style={{ fontSize: "13px", marginBottom: "8px" }}>
             Adjust speed (rate) and pitch dynamically to customize how the notes sound:
           </p>
@@ -335,7 +366,7 @@ function SupportSection({
       <div className="support-block">
         <h5>Direct Feedback to Teacher</h5>
         {feedbackSubmitted ? (
-          <div className="feedback-success">✓ Sent! Your teacher will see this in their dashboard.</div>
+          <div className="feedback-success">Sent. Your teacher will see this in their dashboard.</div>
         ) : (
           <div>
             <textarea

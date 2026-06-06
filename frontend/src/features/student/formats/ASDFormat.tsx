@@ -16,7 +16,12 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
   const lines = atom.transformed_text.split("\n").map((l) => l.trim());
   const willLearn = lines.find((l) => /^what you will learn/i.test(l));
   const learned = lines.find((l) => /^what you learned/i.test(l));
-  const steps = lines.filter((l) => /^step\s*\d/i.test(l)).map((l) => l.replace(/^step\s*\d+:/i, "").trim());
+  // Group each "Step N:" with the explanation lines that follow it (the model
+  // puts the detail on the next lines, not on the marker line itself).
+  const grouped = groupSteps(atom.transformed_text);
+  // Resilient fallback: if there were no "Step N:" markers at all, turn the
+  // reframed prose into sentence steps so nothing is dropped.
+  const displaySteps = grouped.length ? grouped : toSentences(atom.transformed_text, [willLearn, learned]);
   const [showExample, setShowExample] = useState(false);
   const { speak, stop, isPlaying } = useTTS({ format: "asd_structured" });
 
@@ -45,17 +50,17 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
         <h4>2 · Content</h4>
         <div className="audio-bar">
           {!isPlaying ? (
-            <button className="btn btn-sm btn-ghost" onClick={() => speak(steps.join(". "))}>
-              🔊 Listen (calm voice)
+            <button className="btn btn-sm btn-ghost" onClick={() => speak(displaySteps.join(". "))}>
+              Listen (calm voice)
             </button>
           ) : (
             <button className="btn btn-sm btn-ghost" onClick={stop}>
-              ■ Stop
+              Stop
             </button>
           )}
         </div>
         <ol className="asd-steps">
-          {steps.map((step, i) => (
+          {displaySteps.map((step, i) => (
             <li key={i}>{withIdioms(step, meta.idioms ?? [])}</li>
           ))}
         </ol>
@@ -64,7 +69,7 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
             <button className="btn btn-sm btn-ghost" onClick={() => setShowExample((v) => !v)}>
               Show me a real-world example
             </button>
-            {showExample && <div className="example open">🔎 {meta.real_world}</div>}
+            {showExample && <div className="example open">{meta.real_world}</div>}
           </>
         )}
       </div>
@@ -100,6 +105,43 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
       )}
     </div>
   );
+}
+
+/** Group each "Step N:" marker with the explanation lines that follow it. */
+function groupSteps(text: string): string[] {
+  const steps: string[] = [];
+  let current: string | null = null;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^what you learned/i.test(line)) break; // the summary section ends the steps
+    const m = line.match(/^step\s*\d+\s*[:.)-]?\s*/i);
+    if (m) {
+      if (current) steps.push(current.trim());
+      current = line.slice(m[0].length).trim();
+    } else if (current !== null) {
+      current += " " + line;
+    }
+  }
+  if (current) steps.push(current.trim());
+  return steps.filter(Boolean);
+}
+
+/** Split reframed text into clean sentence "steps", skipping any header lines. */
+function toSentences(text: string, skip: (string | undefined)[]): string[] {
+  const skipSet = new Set(skip.filter(Boolean).map((s) => (s as string).trim()));
+  const body = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(
+      (l) =>
+        l &&
+        !skipSet.has(l) &&
+        !/^(what you will learn|what you learned|key idea|key facts|remember|schedule|content|summary|quiz)\b/i.test(l),
+    )
+    .join(" ");
+  const sentences = body.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 1);
+  return sentences.length ? sentences : [body];
 }
 
 /** Wrap any detected idiom in the text with its literal-meaning tooltip. */

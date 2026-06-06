@@ -200,7 +200,7 @@ textarea { min-height: 90px; resize: vertical; }
 .kw { background: #ffe27a; border-radius: 5px; padding: 0 3px; font-weight: 700; }
 
 /* ASD format */
-.fmt-asd { color: #20242e; }
+.fmt-asd { color: var(--ink); }
 .asd-panel { background: #f2f4f8; border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
 .asd-panel h4 { margin: 0 0 4px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .asd-panel p { margin: 0; }
@@ -296,12 +296,21 @@ body.focus-mode .container { max-width: 760px; }
 .asd-intro-row .illustration { flex: none; }
 .voice-tag { font-size: 12px; color: var(--muted); background: #eef0ff; border-radius: 20px; padding: 2px 10px; }
 .concept-map { margin: 6px 0 14px; }
+.concept-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .concept-toggle {
   background: #f2f4f8; border: 1px solid var(--line); border-radius: 10px;
   padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer;
 }
-.concept-svg { background: #fafbff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 8px; overflow-x: auto; }
-.concept-svg svg { max-width: 100%; height: auto; }
+.concept-controls { display: flex; align-items: center; gap: 6px; }
+.concept-controls .btn-sm { padding: 4px 9px; font-size: 14px; line-height: 1; }
+.concept-viewport {
+  background: #fafbff; border: 1px solid var(--line); border-radius: 12px;
+  margin-top: 8px; height: 280px; overflow: hidden; cursor: grab; touch-action: none;
+  display: grid; place-items: center;
+}
+.concept-viewport:active { cursor: grabbing; }
+.concept-svg { width: 100%; transition: transform 0.05s linear; }
+.concept-svg svg { width: 100%; height: auto; pointer-events: none; }
 
 /* Support Section styling */
 .support-section {
@@ -457,5 +466,99 @@ body.focus-mode .container { max-width: 760px; }
   align-items: center;
   padding: 14px 20px;
   border-left: 5px solid #7c5cff;
+}
+
+/* ===== Study-tool FABs now use text labels (not emoji) ===== */
+.fab {
+  width: auto;
+  min-width: 56px;
+  height: auto;
+  border-radius: 22px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+/* ===== Theme toggle (always available, bottom-left) ===== */
+.theme-toggle {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 50;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.theme-toggle:hover { border-color: var(--brand); }
+
+/* ===== Make core surfaces theme-aware (so dark mode looks right) ===== */
+input, textarea, select { background: var(--card); color: var(--ink); }
+.topbar { background: var(--card); }
+.seg { background: var(--bg); }
+.seg-btn { color: var(--ink); }
+.seg-btn.active { background: var(--card); }
+.chip { background: var(--card); color: var(--ink); }
+.fab, .pomo, .notepad { background: var(--card); color: var(--ink); }
+.concept-svg { background: var(--card); }
+.concept-toggle { background: var(--bg); color: var(--ink); }
+.btn-ghost { background: transparent; }
+
+/* ===== Dark theme ===== */
+:root[data-theme="dark"] {
+  --bg: #14161d;
+  --card: #1e2129;
+  --ink: #e8eaf1;
+  --muted: #99a1b3;
+  --line: #2d313c;
+  --warn: #3a2f1a;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+:root[data-theme="dark"] .pill { background: #2d313c; }
+:root[data-theme="dark"] .table th { background: #262a34; }
+:root[data-theme="dark"] .dys-chunk { background: #20242d; border-color: #34302133; }
+:root[data-theme="dark"] .goal,
+:root[data-theme="dark"] .fmt-adhd .goal,
+:root[data-theme="dark"] .mission-brief { background: #2a221c; }
+:root[data-theme="dark"] .schedule { background: #18241f; border-color: #244034; }
+:root[data-theme="dark"] .progress-cue { background: #16261b; }
+:root[data-theme="dark"] .banner { background: #20243a; border-color: #2c3358; }
+:root[data-theme="dark"] .concept-svg svg text { fill: var(--ink); }
+/* Learning-format surfaces: swap hardcoded light backgrounds for dark ones so
+   the reframed content is readable in dark mode. */
+:root[data-theme="dark"] .challenge-card { background: #20242d; }
+:root[data-theme="dark"] .poll { background: #20242d; }
+:root[data-theme="dark"] .poll .opt { background: #262a34; color: var(--ink); }
+:root[data-theme="dark"] .poll .opt.right { background: #16311f; border-color: #1f8a44; }
+:root[data-theme="dark"] .poll .opt.wrong { background: #3a1d1d; border-color: #d23b3b; }
+:root[data-theme="dark"] .asd-panel { background: #20242d; }
+:root[data-theme="dark"] .asd-sec { background: transparent; }
+:root[data-theme="dark"] .example { background: #18243a; border-color: #2a3a5a; }
+:root[data-theme="dark"] .rubric th { background: #20242d; }
+:root[data-theme="dark"] .rubric th, :root[data-theme="dark"] .rubric td { border-color: var(--line); }
+:root[data-theme="dark"] .dys-text { color: var(--ink); }
+/* Lighter syllable colours for contrast on the dark dyslexia chunk. */
+:root[data-theme="dark"] .syl-a { color: #8fb6ff; }
+:root[data-theme="dark"] .syl-b { color: #ffb38a; }
+:root[data-theme="dark"] .kw { color: #1d2030; }
+/* Personalisation widgets keep their light surfaces — force dark text on them
+   so they stay readable in dark mode. */
+:root[data-theme="dark"] .streak-card,
+:root[data-theme="dark"] .widget-soft,
+:root[data-theme="dark"] .streak-card p,
+:root[data-theme="dark"] .streak-card .tips-box,
+:root[data-theme="dark"] .widget-soft p,
+:root[data-theme="dark"] .widget-soft li,
+:root[data-theme="dark"] .widget-soft .muted,
+:root[data-theme="dark"] .widget-soft .asd-panel,
+:root[data-theme="dark"] .widget-soft .asd-panel h4,
+:root[data-theme="dark"] .widget-soft .st {
+  color: #242a36;
 }
 

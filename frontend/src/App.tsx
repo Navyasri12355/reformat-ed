@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, Route, Routes, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
@@ -43,10 +44,28 @@ function TopBar() {
   );
 }
 
+function ThemeToggle() {
+  const [theme, setTheme] = useState<string>(
+    () => document.documentElement.getAttribute("data-theme") || "light",
+  );
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+  };
+  return (
+    <button className="theme-toggle" onClick={toggle} aria-label="Toggle dark mode">
+      {theme === "dark" ? "Light mode" : "Dark mode"}
+    </button>
+  );
+}
+
 export default function App() {
   return (
     <>
       <TopBar />
+      <ThemeToggle />
       <main className="container">
         <Routes>
           <Route path="/login" element={<LoginPage />} />

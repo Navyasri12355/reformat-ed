@@ -5,6 +5,9 @@ import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import "./styles.css";
 
+// Apply the saved colour theme before first paint (avoids a flash).
+document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "light");
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>

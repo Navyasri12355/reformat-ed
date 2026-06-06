@@ -40,18 +40,18 @@ export function DyslexiaFormat({
       <div className="dys-controls">
         {!isPlaying ? (
           <button className="btn" onClick={playAll} disabled={!supported}>
-            ▶ Listen to all
+            Listen to all
           </button>
         ) : (
           <button className="btn btn-ghost" onClick={() => { stop(); setActive(-1); }}>
-            ■ Stop
+            Stop
           </button>
         )}
         <span className="legend">
           Colour key: <b className="syl-a">syllables</b> <b className="syl-b">alternate</b>{" "}
           <b className="kw">key words</b>
         </span>
-        <span className="voice-tag">🔊 slow &amp; clear voice · {engine}</span>
+        <span className="voice-tag">slow &amp; clear voice · {engine}</span>
         {!supported && <span className="muted">Audio not supported in this browser.</span>}
       </div>
 
@@ -79,7 +79,7 @@ export function DyslexiaFormat({
                   speak(chunk.text);
                 }}
               >
-                🔊 Listen to this part
+                Listen to this part
               </button>
             </div>
           </div>

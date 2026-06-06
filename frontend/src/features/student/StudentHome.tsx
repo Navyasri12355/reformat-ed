@@ -34,7 +34,7 @@ export function StudentHome() {
     setBusy(docId);
     try {
       await transformsApi.request(docId);
-      alert("Your version is being prepared. Your teacher will approve it shortly.");
+      alert("Your personalised version is being built. Tap “Start lesson” — segments appear as they are ready.");
     } catch (e) {
       alert("Could not start preparation. Complete your profile quiz first.");
     } finally {
@@ -86,12 +86,11 @@ export function StudentHome() {
           {/* ADHD Personalization Widget */}
           {adhdActive && (
             <div className="streak-card">
-              <span className="streak-fire" role="img" aria-label="fire">🔥</span>
               <div>
                 <h4 style={{ margin: "0 0 4px 0", color: "#ff7a59" }}>4-Day Learning Streak!</h4>
                 <p style={{ margin: 0, fontSize: "15px" }}>You are in the zone. Keep up the momentum to secure your achievements today!</p>
                 <div className="tips-box">
-                  <h5>💡 ADHD Focus Tip</h5>
+                  <h5>ADHD Focus Tip</h5>
                   <p style={{ margin: 0 }}>To stay focused, clear your desk, put your phone on silent, and complete one small challenge at a time.</p>
                 </div>
               </div>
@@ -100,8 +99,8 @@ export function StudentHome() {
 
           {/* Dyslexia Personalization Widget */}
           {dyslexiaActive && (
-            <div className="card" style={{ borderLeft: "5px solid #3aa7ff", backgroundColor: "#f6faff" }}>
-              <h4 style={{ color: "#2f8fe0", margin: "0 0 6px 0" }}>🔊 Audio Reader Assistant</h4>
+            <div className="card widget-soft" style={{ borderLeft: "5px solid #3aa7ff", backgroundColor: "#f6faff" }}>
+              <h4 style={{ color: "#2f8fe0", margin: "0 0 6px 0" }}>Audio Reader Assistant</h4>
               <p style={{ fontSize: "15px", margin: "0 0 12px 0" }}>
                 You have dyslexia mode active. OpenDyslexic font has been applied across the whole dashboard. If you'd like, we can read out your progress.
               </p>
@@ -113,8 +112,8 @@ export function StudentHome() {
 
           {/* ASD Personalization Widget */}
           {asdActive && (
-            <div className="card" style={{ borderLeft: "5px solid #7c5cff", backgroundColor: "#faf9ff" }}>
-              <h4 style={{ color: "#7c5cff", margin: "0 0 8px 0" }}>🧩 Visual Learning Schedule</h4>
+            <div className="card widget-soft" style={{ borderLeft: "5px solid #7c5cff", backgroundColor: "#faf9ff" }}>
+              <h4 style={{ color: "#7c5cff", margin: "0 0 8px 0" }}>Visual Learning Schedule</h4>
               <p className="muted" style={{ marginBottom: "12px", fontSize: "14px" }}>
                 Here is your literal, step-by-step structure for completing lessons. There are no time limits or surprises.
               </p>
@@ -126,7 +125,7 @@ export function StudentHome() {
                 <div className="st"><b>5</b> Take the check-in quiz.</div>
               </div>
               <div className="asd-panel" style={{ marginTop: "14px", border: "1px solid #e2dfff" }}>
-                <h4>📋 Study Rubric & Guidelines</h4>
+                <h4>Study Rubric & Guidelines</h4>
                 <ul className="asd-steps" style={{ margin: "6px 0 0 0", paddingLeft: "20px" }}>
                   <li>Read paragraphs slowly. All idioms are rewritten with literal meanings.</li>
                   <li>Toggle the concept flowchart to see links between keywords.</li>
@@ -138,13 +137,8 @@ export function StudentHome() {
         </div>
       )}
 
-      <div className="row-between">
-        <h2>Your lessons</h2>
-        <a className="btn btn-sm btn-ghost" href="/simulator.html" target="_blank" rel="noreferrer">
-          Explore all formats ↗
-        </a>
-      </div>
-      
+      <h2>Your lessons</h2>
+
       {docs.length === 0 && <p className="muted">No lessons yet. Your teacher will upload some.</p>}
 
       {/* Lesson View: Personalized List vs Grid */}
@@ -194,12 +188,12 @@ export function StudentHome() {
             <div className="card doc-card" key={d.id}>
               {adhdActive && (
                 <span className="format-badge badge-adhd" style={{ marginBottom: "10px" }}>
-                  ⚡ ACTIVE CHALLENGE
+                  ACTIVE CHALLENGE
                 </span>
               )}
               {dyslexiaActive && (
                 <span className="format-badge badge-dyslexia" style={{ marginBottom: "10px" }}>
-                  📖 READABLE LESSON
+                  READABLE LESSON
                 </span>
               )}
               <h4>{d.file_name}</h4>

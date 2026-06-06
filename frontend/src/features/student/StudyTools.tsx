@@ -69,7 +69,7 @@ export function StudyTools() {
     <>
       {focus && (
         <div className="focus-banner">
-          <span>🎯 Distraction-free mode — only the lesson is showing.</span>
+          <span>Distraction-free mode — only the lesson is showing.</span>
           <button className="btn btn-sm btn-ghost" onClick={() => setFocus(false)}>
             Exit (F)
           </button>
@@ -77,14 +77,14 @@ export function StudyTools() {
       )}
 
       <div className="study-fabs">
-        <button className="fab" title="Distraction-free mode (F)" onClick={() => setFocus((f) => !f)}>
-          🎯
+        <button className="fab" title="Distraction-free mode (F)" aria-label="Distraction-free mode" onClick={() => setFocus((f) => !f)}>
+          Focus
         </button>
-        <button className="fab" title="Impulse pad" onClick={() => setOpenNote((v) => !v)}>
-          📝
+        <button className="fab" title="Impulse pad" aria-label="Impulse pad" onClick={() => setOpenNote((v) => !v)}>
+          Notes
         </button>
-        <button className="fab" title="Focus timer" onClick={() => setOpenPomo((v) => !v)}>
-          ⏱️
+        <button className="fab" title="Focus timer" aria-label="Focus timer" onClick={() => setOpenPomo((v) => !v)}>
+          Timer
         </button>
       </div>
 
@@ -92,7 +92,7 @@ export function StudyTools() {
         <div className={pulse ? "pomo pulse" : "pomo"}>
           <div className="row-between">
             <b>Focus timer</b>
-            <span className="note">{running ? "focusing" : pulse ? "break time 🌿" : "ready"}</span>
+            <span className="note">{running ? "focusing" : pulse ? "break time" : "ready"}</span>
           </div>
           <div className="pomo-time">{fmt(left)}</div>
           <div className="row" style={{ justifyContent: "center" }}>
