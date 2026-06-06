@@ -1,5 +1,12 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "https://reformat-ed.onrender.com/$1"
+    },
+    {
+      "source": "/((?!api/|manifest\.json|favicon\.ico|assets/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

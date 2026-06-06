@@ -1,13 +1,23 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 
 // In dev, Vite proxies "/api" -> http://localhost:8000 (see vite.config.ts).
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+// In production, set VITE_API_BASE_URL to your Render backend, e.g.
+// https://your-backend.onrender.com (no trailing /api required).
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const BASE_URL = rawBaseUrl
+  ? rawBaseUrl.replace(/\/$/, "").replace(/\/api$/, "")
+  : "/api";
 
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = [];
+let failedQueue: Array<{
+  resolve: (t: string) => void;
+  reject: (e: unknown) => void;
+}> = [];
 
 function processQueue(error: unknown, token: string | null) {
-  failedQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve(token!)));
+  failedQueue.forEach(({ resolve, reject }) =>
+    error ? reject(error) : resolve(token!),
+  );
   failedQueue = [];
 }
 
@@ -23,7 +33,9 @@ function createApiClient(): AxiosInstance {
   client.interceptors.response.use(
     (response) => response,
     async (error) => {
-      const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+      const original = error.config as InternalAxiosRequestConfig & {
+        _retry?: boolean;
+      };
       if (error.response?.status !== 401 || original._retry) {
         return Promise.reject(error);
       }
