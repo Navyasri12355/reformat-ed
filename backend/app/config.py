@@ -16,7 +16,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(BACKEND_ROOT / ".env").as_posix(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     # --- App ---
     app_name: str = "NeuraCore"
     environment: str = "development"
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://*.vercel.app",
+    ]
 
     # --- Database ---
     # Defaults to a local SQLite file so it runs with no external services.

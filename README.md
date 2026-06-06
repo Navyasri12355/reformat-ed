@@ -106,6 +106,39 @@ runner already supports Celery).
 
 ---
 
+## Deployment
+
+### Frontend on Vercel
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable:
+  - `VITE_API_BASE_URL=https://your-render-backend.onrender.com`
+
+The repository includes a root `vercel.json` SPA rewrite. If you deploy only the
+`frontend` directory as a separate Vercel project, add an equivalent rewrite in
+Vercel project settings so React Router routes resolve to `index.html`.
+
+### Backend on Render
+- Use the included `render.yaml`, or create a Web Service manually with:
+  - Root directory: `backend`
+  - Build command: `pip install -r requirements.txt`
+  - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Required environment variables:
+  - `DATABASE_URL`
+  - `JWT_SECRET`
+- Optional environment variables:
+  - `OPENAI_API_KEY`
+  - `OPENAI_BASE_URL`
+  - `OPENAI_MODEL`
+  - `AUTO_APPROVE_ALL=true`
+  - `CORS_ORIGINS=["https://your-vercel-app.vercel.app"]`
+
+Recommended for Render:
+- `TASK_BACKEND=inline`
+- Postgres database attached via `DATABASE_URL`
+- persistent disk if you want uploaded document storage to survive redeploys
+
 ## Quick start (no Docker, no API key, no Redis)
 
 The defaults use **SQLite** + an **inline task runner** + the **local
