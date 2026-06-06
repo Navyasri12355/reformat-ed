@@ -21,7 +21,11 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
   const grouped = groupSteps(atom.transformed_text);
   // Resilient fallback: if there were no "Step N:" markers at all, turn the
   // reframed prose into sentence steps so nothing is dropped.
-  const displaySteps = grouped.length ? grouped : toSentences(atom.transformed_text, [willLearn, learned]);
+  const displaySteps = (
+    grouped.length
+      ? grouped
+      : toSentences(atom.transformed_text, [willLearn, learned])
+  ).slice(0, 4);
   const [showExample, setShowExample] = useState(false);
   const { speak, stop, isPlaying } = useTTS({ format: "asd_structured" });
 
@@ -37,20 +41,27 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
       </div>
 
       <div className="asd-sec asd-intro-row">
-        <Illustration kind={meta.illustration} size={64} />
+        <Illustration simulator={meta.simulator} size={64} />
         <div>
           <h4>1 · What you will learn</h4>
-          <p>{willLearn ? willLearn.replace(/^what you will learn:/i, "").trim() : "The key facts in this section."}</p>
+          <p>
+            {willLearn
+              ? willLearn.replace(/^what you will learn:/i, "").trim()
+              : "The key facts in this section."}
+          </p>
         </div>
       </div>
 
-      <ConceptDiagram code={meta.diagram} />
+      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} />
 
       <div className="asd-sec">
         <h4>2 · Content</h4>
         <div className="audio-bar">
           {!isPlaying ? (
-            <button className="btn btn-sm btn-ghost" onClick={() => speak(displaySteps.join(". "))}>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => speak(displaySteps.join(". "))}
+            >
               Listen (calm voice)
             </button>
           ) : (
@@ -66,10 +77,15 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
         </ol>
         {meta.real_world && (
           <>
-            <button className="btn btn-sm btn-ghost" onClick={() => setShowExample((v) => !v)}>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => setShowExample((v) => !v)}
+            >
               Show me a real-world example
             </button>
-            {showExample && <div className="example open">{meta.real_world}</div>}
+            {showExample && (
+              <div className="example open">{meta.real_world}</div>
+            )}
           </>
         )}
       </div>
@@ -100,7 +116,10 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
               ))}
             </tbody>
           </table>
-          <p className="note">No timer. No auto-advance. No flashing. The layout is the same every lesson.</p>
+          <p className="note">
+            No timer. No auto-advance. No flashing. The layout is the same every
+            lesson.
+          </p>
         </div>
       )}
     </div>
@@ -129,7 +148,9 @@ function groupSteps(text: string): string[] {
 
 /** Split reframed text into clean sentence "steps", skipping any header lines. */
 function toSentences(text: string, skip: (string | undefined)[]): string[] {
-  const skipSet = new Set(skip.filter(Boolean).map((s) => (s as string).trim()));
+  const skipSet = new Set(
+    skip.filter(Boolean).map((s) => (s as string).trim()),
+  );
   const body = text
     .split("\n")
     .map((l) => l.trim())
@@ -137,10 +158,15 @@ function toSentences(text: string, skip: (string | undefined)[]): string[] {
       (l) =>
         l &&
         !skipSet.has(l) &&
-        !/^(what you will learn|what you learned|key idea|key facts|remember|schedule|content|summary|quiz)\b/i.test(l),
+        !/^(what you will learn|what you learned|key idea|key facts|remember|schedule|content|summary|quiz)\b/i.test(
+          l,
+        ),
     )
     .join(" ");
-  const sentences = body.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 1);
+  const sentences = body
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 1);
   return sentences.length ? sentences : [body];
 }
 
@@ -148,11 +174,15 @@ function toSentences(text: string, skip: (string | undefined)[]): string[] {
 function withIdioms(text: string, idioms: IdiomMeta[]) {
   if (idioms.length === 0) return text;
   // Build a single regex matching any idiom phrase (case-insensitive).
-  const escaped = idioms.map((i) => i.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const escaped = idioms.map((i) =>
+    i.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  );
   const re = new RegExp(`(${escaped.join("|")})`, "ig");
   const parts = text.split(re);
   return parts.map((part, i) => {
-    const match = idioms.find((id) => id.phrase.toLowerCase() === part.toLowerCase());
+    const match = idioms.find(
+      (id) => id.phrase.toLowerCase() === part.toLowerCase(),
+    );
     if (match) {
       return (
         <span className="idiom" key={i}>

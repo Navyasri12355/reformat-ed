@@ -27,7 +27,8 @@ export function LearningSession() {
       try {
         session = await sessionsApi.start(documentId);
       } catch {
-        if (active) setError("Could not start a learning session. Please try again.");
+        if (active)
+          setError("Could not start a learning session. Please try again.");
         return;
       }
       if (!active) return;
@@ -62,19 +63,27 @@ export function LearningSession() {
 
   if (error) return <div className="card center">{error}</div>;
   if (!content || !sessionId)
-    return <div className="center muted">Preparing your personalised lesson…</div>;
+    return (
+      <div className="center muted">Preparing your personalised lesson…</div>
+    );
   if (content.atoms.length === 0)
     return (
       <div className="card center">
         {preparing ? (
           <>
             <p>Building your personalised version…</p>
-            <p className="muted">Segments appear here as soon as they are ready.</p>
+            <p className="muted">
+              Segments appear here as soon as they are ready.
+            </p>
           </>
         ) : (
-          <p>No content is ready yet. Tap “Prepare for me” on the lesson first.</p>
+          <p>
+            No content is ready yet. Tap “Prepare for me” on the lesson first.
+          </p>
         )}
-        <button className="btn btn-ghost" onClick={() => navigate("/")}>Back</button>
+        <button className="btn btn-ghost" onClick={() => navigate("/")}>
+          Back
+        </button>
       </div>
     );
 
@@ -88,14 +97,26 @@ export function LearningSession() {
     (snap.adhd_weight ?? 0) >= (snap.asd_weight ?? 0) &&
     (snap.adhd_weight ?? 0) > 0;
   const showTools =
-    adhdDominant || atoms.some((a) => a.output_format === "adhd_gamified" || a.output_format === "blended");
+    adhdDominant ||
+    atoms.some(
+      (a) =>
+        a.output_format === "adhd_gamified" || a.output_format === "blended",
+    );
 
   if (done) {
     return (
       <div className="card center">
         <h2>Lesson complete!</h2>
-        <p className="muted">Great work. We'll keep tuning this to how you learn best.</p>
-        <button className="btn" onClick={async () => { await sessionsApi.end(sessionId); navigate("/"); }}>
+        <p className="muted">
+          Great work. We'll keep tuning this to how you learn best.
+        </p>
+        <button
+          className="btn"
+          onClick={async () => {
+            await sessionsApi.end(sessionId);
+            navigate("/");
+          }}
+        >
           Finish
         </button>
       </div>
@@ -150,7 +171,8 @@ function AtomStep({
   });
 
   const hasPoll =
-    (atom.output_format === "adhd_gamified" || atom.output_format === "blended") &&
+    (atom.output_format === "adhd_gamified" ||
+      atom.output_format === "blended") &&
     !!atom.meta?.poll;
   const [pollPassed, setPollPassed] = useState(!hasPoll);
   const [showSupport, setShowSupport] = useState(false);
@@ -166,13 +188,22 @@ function AtomStep({
         atom={atom}
         onAudioPlay={tracker.markAudioPlay}
         onPollAnswered={onPollAnswered}
+        pollPassed={pollPassed}
       />
       <div className="atom-controls">
-        <button className="btn btn-ghost" onClick={() => { tracker.markSkip(); onNext(); }}>
+        <button
+          className="btn btn-ghost"
+          onClick={() => {
+            tracker.markSkip();
+            onNext();
+          }}
+        >
           Skip
         </button>
         <button
-          className={showSupport ? "btn btn-ghost btn-warn-active" : "btn btn-ghost"}
+          className={
+            showSupport ? "btn btn-ghost btn-warn-active" : "btn btn-ghost"
+          }
           onClick={() => {
             setShowSupport((v) => !v);
             tracker.markRetry();
@@ -198,11 +229,7 @@ function AtomStep({
   );
 }
 
-function SupportSection({
-  atom,
-}: {
-  atom: TransformedAtom;
-}) {
+function SupportSection({ atom }: { atom: TransformedAtom }) {
   const [simplifiedText, setSimplifiedText] = useState("");
   const [loadingSimplified, setLoadingSimplified] = useState(false);
   const [question, setQuestion] = useState("");
@@ -231,7 +258,10 @@ function SupportSection({
         if (active) setSimplifiedText(res.response);
       })
       .catch(() => {
-        if (active) setSimplifiedText("Could not fetch simplified summary. Try reading the original concept slowly.");
+        if (active)
+          setSimplifiedText(
+            "Could not fetch simplified summary. Try reading the original concept slowly.",
+          );
       })
       .finally(() => {
         if (active) setLoadingSimplified(false);
@@ -248,7 +278,9 @@ function SupportSection({
       const res = await transformsApi.getSupport(atom.id, question);
       setTutorAnswer(res.response);
     } catch {
-      setTutorAnswer("The tutor is offline. Please try again or ask your teacher.");
+      setTutorAnswer(
+        "The tutor is offline. Please try again or ask your teacher.",
+      );
     } finally {
       setLoadingAnswer(false);
     }
@@ -271,7 +303,7 @@ function SupportSection({
   return (
     <div className="support-section">
       <h3 className="support-title">Personalized Support Panel</h3>
-      
+
       {/* 1. Even Simpler Summary */}
       <div className="support-block">
         <h5>Even Simpler Summary</h5>
@@ -296,7 +328,8 @@ function SupportSection({
       <div className="support-block">
         <h5>Ask Your Personal Tutor</h5>
         <p className="muted" style={{ fontSize: "13px", margin: "4px 0" }}>
-          Type a question about this step to get a response tailored to your style:
+          Type a question about this step to get a response tailored to your
+          style:
         </p>
         <div className="row" style={{ marginTop: "8px", width: "100%" }}>
           <input
@@ -306,13 +339,19 @@ function SupportSection({
             onKeyDown={(e) => e.key === "Enter" && ask()}
             style={{ flex: 1, margin: 0 }}
           />
-          <button className="btn btn-sm" onClick={ask} disabled={loadingAnswer || !question.trim()}>
+          <button
+            className="btn btn-sm"
+            onClick={ask}
+            disabled={loadingAnswer || !question.trim()}
+          >
             {loadingAnswer ? "Thinking…" : "Ask"}
           </button>
         </div>
         {tutorAnswer && (
           <div className="tutor-bubble">
-            <p style={{ margin: 0 }}><strong>Tutor:</strong> {tutorAnswer}</p>
+            <p style={{ margin: 0 }}>
+              <strong>Tutor:</strong> {tutorAnswer}
+            </p>
             {supported && (
               <button
                 className="btn btn-sm btn-ghost"
@@ -330,12 +369,18 @@ function SupportSection({
       {supported && (
         <div className="support-block">
           <h5>Voice Modulation Controls</h5>
-          <p className="muted" style={{ fontSize: "13px", marginBottom: "8px" }}>
-            Adjust speed (rate) and pitch dynamically to customize how the notes sound:
+          <p
+            className="muted"
+            style={{ fontSize: "13px", marginBottom: "8px" }}
+          >
+            Adjust speed (rate) and pitch dynamically to customize how the notes
+            sound:
           </p>
           <div className="voice-controls-grid">
             <div className="voice-slider-item">
-              <span className="slider-label">Speech Speed (Rate): <b>{rate.toFixed(2)}x</b></span>
+              <span className="slider-label">
+                Speech Speed (Rate): <b>{rate.toFixed(2)}x</b>
+              </span>
               <input
                 type="range"
                 min="0.5"
@@ -347,7 +392,9 @@ function SupportSection({
               />
             </div>
             <div className="voice-slider-item">
-              <span className="slider-label">Voice Pitch: <b>{pitch.toFixed(2)}</b></span>
+              <span className="slider-label">
+                Voice Pitch: <b>{pitch.toFixed(2)}</b>
+              </span>
               <input
                 type="range"
                 min="0.5"
@@ -366,7 +413,9 @@ function SupportSection({
       <div className="support-block">
         <h5>Direct Feedback to Teacher</h5>
         {feedbackSubmitted ? (
-          <div className="feedback-success">Sent. Your teacher will see this in their dashboard.</div>
+          <div className="feedback-success">
+            Sent. Your teacher will see this in their dashboard.
+          </div>
         ) : (
           <div>
             <textarea

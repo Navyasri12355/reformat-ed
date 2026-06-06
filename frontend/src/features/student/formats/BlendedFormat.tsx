@@ -13,26 +13,45 @@ export function BlendedFormat({
   atom,
   onAudioPlay,
   onPollAnswered,
+  pollPassed = false,
 }: {
   atom: TransformedAtom;
   onAudioPlay?: () => void;
   onPollAnswered?: (correct: boolean) => void;
+  pollPassed?: boolean;
 }) {
   const meta = atom.meta ?? {};
-  const lines = atom.transformed_text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const goal = meta.goal ?? lines.find((l) => /mission brief/i.test(l))?.replace(/^mission brief:/i, "").trim();
-  const markerSteps = lines.filter((l) => /^step\s*\d/i.test(l)).map((l) => l.replace(/^step\s*\d+:/i, "").trim());
+  const lines = atom.transformed_text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const goal =
+    meta.goal ??
+    lines
+      .find((l) => /mission brief/i.test(l))
+      ?.replace(/^mission brief:/i, "")
+      .trim();
+  const markerSteps = lines
+    .filter((l) => /^step\s*\d/i.test(l))
+    .map((l) => l.replace(/^step\s*\d+:/i, "").trim());
   const cue = lines.find((l) => /progress cue/i.test(l));
   // Resilient fallback: if no "Step N:" markers, show the reframed prose as
   // sentence steps so the content is never dropped.
-  const steps = markerSteps.length
-    ? markerSteps
-    : lines
-        .filter((l) => !/mission brief|progress cue|what you will learn|what you learned/i.test(l))
-        .join(" ")
-        .split(/(?<=[.!?])\s+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 1);
+  const steps = (
+    markerSteps.length
+      ? markerSteps
+      : lines
+          .filter(
+            (l) =>
+              !/mission brief|progress cue|what you will learn|what you learned/i.test(
+                l,
+              ),
+          )
+          .join(" ")
+          .split(/(?<=[.!?])\s+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 1)
+  ).slice(0, 4);
 
   const { speak, stop, isPlaying, supported } = useTTS({ format: "blended" });
   const script = atom.audio_script || atom.transformed_text;
@@ -40,16 +59,21 @@ export function BlendedFormat({
   return (
     <div className="fmt fmt-blended">
       <div className="anchor-wrap">
-        <Illustration kind={meta.illustration} />
+        <Illustration simulator={meta.simulator} />
       </div>
       {goal && <div className="mission-brief">{goal}</div>}
-      <ConceptDiagram code={meta.diagram} />
-
+      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} />
 
       {supported && (
         <div className="audio-bar">
           {!isPlaying ? (
-            <button className="btn btn-sm" onClick={() => { onAudioPlay?.(); speak(script); }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                onAudioPlay?.();
+                speak(script);
+              }}
+            >
               Listen
             </button>
           ) : (
@@ -67,7 +91,11 @@ export function BlendedFormat({
       </ol>
 
       {meta.poll && <MicroPoll poll={meta.poll} onAnswered={onPollAnswered} />}
-      {cue && <div className="progress-cue">{cue.replace(/^progress cue:/i, "").trim()}</div>}
+      {cue && (!meta.poll || pollPassed) && (
+        <div className="progress-cue">
+          {cue.replace(/^progress cue:/i, "").trim()}
+        </div>
+      )}
     </div>
   );
 }
