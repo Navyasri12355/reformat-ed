@@ -62,6 +62,36 @@ export function useTTS({ format = "asd_structured", onWordHighlight, onEnd, rate
       const v = BROWSER_VOICE[format] ?? BROWSER_VOICE.asd_structured;
       u.rate = rateOverride !== undefined && rateOverride !== null ? rateOverride : v.rate;
       u.pitch = pitchOverride !== undefined && pitchOverride !== null ? pitchOverride : v.pitch;
+      // Prefer a female-sounding voice where available. Heuristic: look for
+      // voices whose name suggests female (contains 'female' or common female
+      // voice names). Fallback to default voice if none found.
+      try {
+        const pickFemale = (voices: SpeechSynthesisVoice[]) => {
+          const femaleHints = ["female", "zira", "samantha", "amelie", "alloy", "kendra", "amy", "ava", "susan", "victoria", "alice"];
+          for (const hint of femaleHints) {
+            const found = voices.find((vv) => vv.name.toLowerCase().includes(hint));
+            if (found) return found;
+          }
+          const en = voices.find((vv) => /en(-|_)?us|en(-|_)?gb|english/i.test(vv.lang || vv.name));
+          return en || voices[0] || null;
+        };
+
+        let voices = window.speechSynthesis.getVoices();
+        if (!voices || voices.length === 0) {
+          // some browsers populate voices asynchronously
+          window.speechSynthesis.onvoiceschanged = () => {
+            const vlist = window.speechSynthesis.getVoices();
+            const sel = pickFemale(vlist);
+            if (sel) u.voice = sel;
+            window.speechSynthesis.speak(u);
+          };
+        } else {
+          const sel = pickFemale(voices);
+          if (sel) u.voice = sel;
+        }
+      } catch (err) {
+        // ignore — continue with default voice
+      }
       u.volume = 1.0;
       if (onWordHighlight) {
         u.onboundary = (event) => {

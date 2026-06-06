@@ -52,7 +52,7 @@ export function ASDFormat({ atom }: { atom: TransformedAtom }) {
         </div>
       </div>
 
-      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} />
+      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} diagram={meta.diagram} />
 
       <div className="asd-sec">
         <h4>2 · Content</h4>

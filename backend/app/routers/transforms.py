@@ -35,6 +35,8 @@ from app.schemas import (
 )
 from app.config import settings
 from app.services.transformer import clean_for_tts
+from app.services.atomiser import split_sentences
+
 from app.tasks import run_transform
 
 router = APIRouter(prefix="/transforms", tags=["transforms"])
@@ -229,12 +231,46 @@ def clean_support_response(text: str) -> str:
         return ""
 
     cleaned = text.strip()
-    cleaned = re.sub(r'^(To understand .*?[\.:])\s*', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'^(Here is (an|a|the).*?[\.:])\s*', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'^(This section .*?[\.:])\s*', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'^(The main idea is[:]?\s*)', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'^(Answer[:]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    # Remove a few common templating prefixes but avoid stripping full
+    # sentences. Only remove short lead-ins.
+    cleaned = re.sub(r'^(Tutor[:\-]\s*)', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(Here is an even simpler summary of this section[:\-]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(Here is a simpler summary[:\-]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(To understand[:\-]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(The main idea is[:\-]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    # Remove templated bullet labels that LLMs sometimes emit, e.g. '• Concept:'
+    cleaned = re.sub(r'(?m)^[\s\u2022\*\-]*\s*(Concept|Detail|Action|Note)\s*[:\-]\s*', '', cleaned, flags=re.IGNORECASE)
+    # Strip stray leading bullet characters
+    cleaned = re.sub(r'(?m)^\s*[\u2022\*\-]+\s*', '', cleaned)
     return cleaned.strip()
+
+
+def strip_support_text(text: str) -> str:
+    text = text or ""
+    text = re.sub(r'(?mi)^(KEY IDEA|REMEMBER|MISSION BRIEF|PROGRESS CUE|WHAT YOU WILL LEARN|WHAT YOU LEARNED|GOAL)\s*[:\-]?\s*', '', text)
+    text = re.sub(r'(?m)^\s*[-*\u2022]+\s*', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def is_generic_support(text: str) -> bool:
+    if not text or len(text.strip()) < 10:
+        return True
+    text = text.strip()
+    if re.search(r'^(here is|to understand|the main idea is|concept|detail|action|note)\b', text, flags=re.IGNORECASE):
+        return True
+    if re.search(r'\b(key fact|main idea|important point|important idea)\b', text, flags=re.IGNORECASE) and len(text.split()) < 15:
+        return True
+    return False
+
+
+def get_support_source_text(ta: TransformedAtom) -> str:
+    source = ""
+    if getattr(ta, 'atom', None) is not None and getattr(ta.atom, 'raw_text', None):
+        source = ta.atom.raw_text
+    if not source:
+        source = ta.transformed_text or ""
+    return strip_support_text(source)
 
 
 def generate_support_response(ta: TransformedAtom, question: str | None, db: Session) -> str:
@@ -249,6 +285,9 @@ def generate_support_response(ta: TransformedAtom, question: str | None, db: Ses
                 timeout=settings.openai_timeout_seconds,
             )
 
+            source_text = get_support_source_text(ta)
+            transformed_text = strip_support_text(ta.transformed_text or "")
+
             if question:
                 system_prompt = (
                     f"You are a supportive, friendly neurodivergent-friendly tutor for a student. "
@@ -262,15 +301,18 @@ def generate_support_response(ta: TransformedAtom, question: str | None, db: Ses
                     f"Do not preface the answer with reasoning, introspection, or phrases like 'To understand' or 'Here is'."
                 )
                 user_prompt = (
-                    f"Here is the curriculum content they are reading:\n"
-                    f"---\n{ta.transformed_text}\n---\n\n"
+                    f"Use the original material and the student-facing rewritten text to answer the question. "
+                    f"If the rewritten text contains headings like KEY IDEA or REMEMBER, ignore those labels and focus on the actual content.\n\n"
+                    f"Original source text:\n---\n{source_text}\n---\n\n"
+                    f"Student-facing text:\n---\n{transformed_text}\n---\n\n"
                     f"Student's question:\n\"{question}\"\n\n"
                     f"Answer the question directly, accurately, and in the requested style."
                 )
             else:
                 system_prompt = (
                     f"You are a supportive, friendly neurodivergent-friendly tutor. "
-                    f"Explain the following text in an even simpler, more accessible way. "
+                    f"Explain the following original material in an even simpler, more accessible way. "
+                    f"Ignore headings like KEY IDEA or REMEMBER and summarize the core meaning. "
                     f"Do not include meta commentary, model reasoning, or phrases like 'To understand' or 'Here is'. "
                     f"Keep the response direct, short, and easy to read. "
                     f"Tailor the explanation format to the student's preferred format: {output_format}.\n"
@@ -280,8 +322,7 @@ def generate_support_response(ta: TransformedAtom, question: str | None, db: Ses
                     f"Keep it very brief (under 150 words)."
                 )
                 user_prompt = (
-                    f"Text to simplify:\n"
-                    f"---\n{ta.transformed_text}\n---"
+                    f"Original source text:\n---\n{source_text}\n---"
                 )
 
             resp = client.chat.completions.create(
@@ -290,20 +331,30 @@ def generate_support_response(ta: TransformedAtom, question: str | None, db: Ses
                 temperature=0.4,
                 max_tokens=300,
             )
-            return clean_support_response(resp.choices[0].message.content or "")
+            answer = clean_support_response(resp.choices[0].message.content or "")
+            if not answer or is_generic_support(answer):
+                raise ValueError("OpenAI returned a generic or placeholder support response")
+            return answer
         except Exception:
             pass
 
-    # Deterministic local fallback
+    # Deterministic local fallback — produce a short, factual summary from the
+    # original source text rather than the rewritten presentation text.
+    def short_summary(text: str, max_sentences: int = 2) -> str:
+        sents = split_sentences(text) or [text]
+        out = " ".join([s.strip() for s in sents[:max_sentences]])
+        return out.strip()
+
+    fallback_text = get_support_source_text(ta)
     if question:
+        answer = short_summary(fallback_text, max_sentences=2)
         return clean_support_response(
-            f"The main idea is: {ta.transformed_text[:140].rstrip('.')}.\n"
-            f"Use the simplest phrasing to explain the key concept in this section."
+            f"{answer}\n\nIf you'd like more detail, ask a follow-up question."
         )
     else:
+        summary = short_summary(fallback_text, max_sentences=2)
         return clean_support_response(
-            f"Concept: {ta.transformed_text[:140].rstrip('.')}.\n"
-            f"Detail: Read the short explanation above to understand what matters most."
+            f"{summary}\n\nAction: Take a moment to review this idea, or listen to the audio readout."
         )
 
 

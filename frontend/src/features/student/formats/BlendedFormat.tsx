@@ -62,7 +62,7 @@ export function BlendedFormat({
         <Illustration simulator={meta.simulator} />
       </div>
       {goal && <div className="mission-brief">{goal}</div>}
-      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} />
+      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} diagram={meta.diagram} />
 
       {supported && (
         <div className="audio-bar">

@@ -295,7 +295,9 @@ def extract_keywords(text: str, subject: str, limit: int = 5) -> list[str]:
 
     # 2. Long, content-bearing words as a fallback / supplement.
     if len(found) < limit:
-        words = re.findall(r"[A-Za-z]{6,}", lower)
+        # allow slightly shorter content-bearing words (5+ chars) so we
+        # capture useful domain terms like 'force', 'ratio', 'cycle'
+        words = re.findall(r"[A-Za-z]{5,}", lower)
         for w in sorted(set(words), key=lambda w: -len(w)):
             if w not in _STOPWORDS and w not in found:
                 found.append(w)
@@ -326,11 +328,13 @@ def build_simulator(subject: str, keywords: list[str], text: str) -> dict:
         "computer_science": "Code logic simulator",
         "general": "Concept comparison simulator",
     }[subject]
-    concept = (
-        keywords[0].replace("_", " ").title()
-        if keywords
-        else subject.replace("_", " ").title()
-    )
+    # Prefer a concise concept label built from the first two keywords when
+    # available; if keywords are generic (e.g. 'idea') fall back to the subject.
+    if keywords and not (len(keywords) == 1 and keywords[0].lower() == "idea"):
+        parts = [k.replace("_", " ").title() for k in keywords[:2]]
+        concept = " · ".join(parts)
+    else:
+        concept = subject.replace("_", " ").title()
     steps = [re.sub(r"\s+", " ", s) for s in lines[:4]] or [text.strip()]
     steps = [
         s if len(s) <= 120 else s[:120].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"

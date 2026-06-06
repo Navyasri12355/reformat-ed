@@ -43,7 +43,7 @@ export function ADHDFormat({
       </div>
       {goal && <div className="goal">Goal: {goal}</div>}
 
-      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} />
+      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} diagram={meta.diagram} />
 
       <div className="challenge-grid">
         {body.map((line, i) => (

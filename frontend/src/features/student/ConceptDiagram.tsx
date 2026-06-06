@@ -1,6 +1,20 @@
 import { useMemo, useState } from "react";
 import type { SimulatorMeta } from "../../api/types";
 
+function parseDiagramRoot(diagram?: string): string | null {
+  if (!diagram) return null;
+  const match = diagram.match(/(?:^|\n)\s*(?:TOPIC|N0|A0)\s*\[\s*"([^"]+)"\s*\]/);
+  return match ? match[1] : null;
+}
+
+function parseDiagramLabels(diagram?: string): string[] {
+  if (!diagram) return [];
+  const matches = [...diagram.matchAll(/\[\s*"([^"]+)"\s*\]/g)];
+  const labels = matches.map((m) => m[1].trim()).filter(Boolean);
+  if (labels.length <= 1) return labels;
+  return labels.slice(1, 5);
+}
+
 /**
  * HTML-only concept flow. Uses semantic div-based cards instead of Mermaid/SVG
  * so the learning visual is topic-grounded and fully styleable.
@@ -8,10 +22,12 @@ import type { SimulatorMeta } from "../../api/types";
 export function ConceptDiagram({
   simulator,
   keywords,
+  diagram,
   defaultOpen = true,
 }: {
   simulator?: SimulatorMeta;
   keywords?: string[];
+  diagram?: string;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -21,12 +37,31 @@ export function ConceptDiagram({
     const keywordNodes = (keywords ?? simulator?.keywords ?? [])
       .filter(Boolean)
       .slice(0, 4);
+    const diagramNodes = parseDiagramLabels(diagram);
+    const rawItems = simulatorSteps.length
+      ? simulatorSteps.slice(0, 4)
+      : keywordNodes.length
+      ? keywordNodes
+      : diagramNodes;
+    // Normalize each item into a concise label: take the first sentence or
+    // truncate to ~120 chars so the concept map isn't filled with long prose.
+    const items = rawItems.map((it) => {
+      if (!it) return it;
+      const s = String(it).trim();
+      const firstSent = s.split(/(?<=[.!?])\s+/)[0];
+      if (firstSent.length <= 120) return firstSent.replace(/\s+/g, " ");
+      return firstSent.slice(0, 117).trim() + "...";
+    });
+    const titleFromKeywords = keywordNodes.length
+      ? keywordNodes.slice(0, 2).map((k) => String(k).replace(/_/g, " ").replace(/\s+/g, " ").trim()).join(" · ")
+      : null;
+    const titleFromDiagram = parseDiagramRoot(diagram);
     return {
-      title: simulator?.concept ?? "Main idea",
-      items: simulatorSteps.length ? simulatorSteps.slice(0, 4) : keywordNodes,
-      chips: keywordNodes,
+      title: simulator?.concept ?? titleFromKeywords ?? titleFromDiagram ?? "Main idea",
+      items,
+      chips: Array.from(new Set(keywordNodes)),
     };
-  }, [keywords, simulator]);
+  }, [keywords, simulator, diagram]);
 
   if (!simulator && nodes.items.length === 0) return null;
 

@@ -72,6 +72,7 @@ export function DyslexiaFormat({
       <ConceptDiagram
         simulator={atom.meta?.simulator}
         keywords={atom.meta?.keywords}
+        diagram={atom.meta?.diagram}
         defaultOpen={false}
       />
 
