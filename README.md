@@ -106,6 +106,51 @@ runner already supports Celery).
 
 ---
 
+## Deployment
+
+### Frontend on Vercel
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Preferred environment variable:
+  - `VITE_API_BASE_URL=https://your-render-backend.onrender.com`
+
+Important: do NOT set `VITE_API_BASE_URL` to a URL ending in `/api` unless your
+backend is actually mounted under `/api`. This app already calls routes like
+`/auth/register`, so the correct value is usually just the Render origin.
+
+Important: if you use a Vercel rewrite for `/api`, update `vercel.json` to point
+`/api/*` to your real Render backend URL before deploying. The SPA rewrite must
+NOT swallow `/api/*` requests, or auth/register/login calls will return 404.
+
+If you deploy the frontend as a standalone Vercel project, either:
+- set `VITE_API_BASE_URL` to the full Render backend URL, or
+- add a Vercel rewrite for `/api/*` to your Render backend
+
+and keep the SPA fallback rewrite only for non-API, non-static routes. Static
+files like `manifest.json`, `favicon.ico`, and built `/assets/*` files must not
+be rewritten to `index.html`.
+
+### Backend on Render
+- Use the included `render.yaml`, or create a Web Service manually with:
+  - Root directory: `backend`
+  - Build command: `pip install -r requirements.txt`
+  - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Required environment variables:
+  - `DATABASE_URL`
+  - `JWT_SECRET`
+- Optional environment variables:
+  - `OPENAI_API_KEY`
+  - `OPENAI_BASE_URL`
+  - `OPENAI_MODEL`
+  - `AUTO_APPROVE_ALL=true`
+  - `CORS_ORIGINS=["https://your-vercel-app.vercel.app"]`
+
+Recommended for Render:
+- `TASK_BACKEND=inline`
+- Postgres database attached via `DATABASE_URL`
+- persistent disk if you want uploaded document storage to survive redeploys
+
 ## Quick start (no Docker, no API key, no Redis)
 
 The defaults use **SQLite** + an **inline task runner** + the **local
