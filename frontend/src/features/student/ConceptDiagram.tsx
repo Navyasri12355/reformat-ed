@@ -38,11 +38,11 @@ export function ConceptDiagram({
       .filter(Boolean)
       .slice(0, 4);
     const diagramNodes = parseDiagramLabels(diagram);
-    const rawItems = simulatorSteps.length
+    const rawItems = diagramNodes.length
+      ? diagramNodes
+      : simulatorSteps.length
       ? simulatorSteps.slice(0, 4)
-      : keywordNodes.length
-      ? keywordNodes
-      : diagramNodes;
+      : keywordNodes;
     // Normalize each item into a concise label: take the first sentence or
     // truncate to ~120 chars so the concept map isn't filled with long prose.
     const items = rawItems.map((it) => {
@@ -52,12 +52,12 @@ export function ConceptDiagram({
       if (firstSent.length <= 120) return firstSent.replace(/\s+/g, " ");
       return firstSent.slice(0, 117).trim() + "...";
     });
+    const titleFromDiagram = parseDiagramRoot(diagram);
     const titleFromKeywords = keywordNodes.length
       ? keywordNodes.slice(0, 2).map((k) => String(k).replace(/_/g, " ").replace(/\s+/g, " ").trim()).join(" · ")
       : null;
-    const titleFromDiagram = parseDiagramRoot(diagram);
     return {
-      title: simulator?.concept ?? titleFromKeywords ?? titleFromDiagram ?? "Main idea",
+      title: titleFromDiagram ?? simulator?.concept ?? titleFromKeywords ?? "Main idea",
       items,
       chips: Array.from(new Set(keywordNodes)),
     };
