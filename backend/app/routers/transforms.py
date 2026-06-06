@@ -4,6 +4,7 @@ educator review queue + approve/reject workflow."""
 from __future__ import annotations
 
 import uuid
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -223,6 +224,19 @@ def review_transform(
     return {"transformed_atom_id": ta.id, "review_status": ta.review_status}
 
 
+def clean_support_response(text: str) -> str:
+    if not text:
+        return ""
+
+    cleaned = text.strip()
+    cleaned = re.sub(r'^(To understand .*?[\.:])\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(Here is (an|a|the).*?[\.:])\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(This section .*?[\.:])\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(The main idea is[:]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^(Answer[:]?\s*)', '', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
 def generate_support_response(ta: TransformedAtom, question: str | None, db: Session) -> str:
     output_format = ta.output_format
 
@@ -244,18 +258,21 @@ def generate_support_response(ta: TransformedAtom, question: str | None, db: Ses
                     f"- For adhd_gamified: short, punchy, engaging, action-oriented, highlighting key points. "
                     f"- For dyslexia_audio: short sentences (max 15 words), simple vocabulary, easy to read/listen. "
                     f"- For blended: balanced, short steps, clear goal. "
-                    f"Keep the answer concise (under 120 words)."
+                    f"Keep the answer concise (under 120 words). "
+                    f"Do not preface the answer with reasoning, introspection, or phrases like 'To understand' or 'Here is'."
                 )
                 user_prompt = (
                     f"Here is the curriculum content they are reading:\n"
                     f"---\n{ta.transformed_text}\n---\n\n"
                     f"Student's question:\n\"{question}\"\n\n"
-                    f"Please answer their question directly, accurately, and tailored to their profile style."
+                    f"Answer the question directly, accurately, and in the requested style."
                 )
             else:
                 system_prompt = (
                     f"You are a supportive, friendly neurodivergent-friendly tutor. "
-                    f"Explain the following text in an even simpler, more accessible way (using an easy analogy or breaking it down further). "
+                    f"Explain the following text in an even simpler, more accessible way. "
+                    f"Do not include meta commentary, model reasoning, or phrases like 'To understand' or 'Here is'. "
+                    f"Keep the response direct, short, and easy to read. "
                     f"Tailor the explanation format to the student's preferred format: {output_format}.\n"
                     f"- For asd_structured: literal, structured, step-by-step. "
                     f"- For adhd_gamified: brief challenges, active second-person voice. "
@@ -273,24 +290,20 @@ def generate_support_response(ta: TransformedAtom, question: str | None, db: Ses
                 temperature=0.4,
                 max_tokens=300,
             )
-            return (resp.choices[0].message.content or "").strip()
+            return clean_support_response(resp.choices[0].message.content or "")
         except Exception:
             pass
 
     # Deterministic local fallback
     if question:
-        return (
-            f"Here is a simple response to your question: '{question}'. "
-            f"In this section, the main concept is: "
-            f"'{ta.transformed_text[:200]}...'. "
-            f"Try reading this section slowly, or adjust the voice speed below to listen to it again."
+        return clean_support_response(
+            f"The main idea is: {ta.transformed_text[:140].rstrip('.')}.\n"
+            f"Use the simplest phrasing to explain the key concept in this section."
         )
     else:
-        return (
-            f"Here is an even simpler summary of this section:\n"
-            f"• Concept: The key fact is described in the text.\n"
-            f"• Detail: {ta.transformed_text[:150]}...\n"
-            f"• Action: Take a moment to review this idea, or listen to the audio readout at a slower speed."
+        return clean_support_response(
+            f"Concept: {ta.transformed_text[:140].rstrip('.')}.\n"
+            f"Detail: Read the short explanation above to understand what matters most."
         )
 
 

@@ -110,14 +110,17 @@ def test_support_endpoints_with_local_fallback(client):
         assert resp.status_code == 200
         data = resp.json()
         assert "response" in data
-        assert "simpler summary" in data["response"]
+        assert "simpler summary" not in data["response"].lower()
+        assert not data["response"].lower().startswith("here is")
+        assert not data["response"].lower().startswith("to understand")
 
         # Test question support request
         resp = client.post(f"/transforms/{ta.id}/support", json={"question": "What is photosynthesis?"}, headers=headers)
         assert resp.status_code == 200
         data = resp.json()
         assert "response" in data
-        assert "What is photosynthesis?" in data["response"]
+        assert "What is photosynthesis?" not in data["response"]
+        assert not data["response"].lower().startswith("here is")
 
         # Test submit feedback
         resp = client.post(f"/transforms/{ta.id}/feedback", json={"message": "This section was hard to understand!"}, headers=headers)

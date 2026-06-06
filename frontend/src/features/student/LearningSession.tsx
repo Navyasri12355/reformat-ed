@@ -310,8 +310,17 @@ function SupportSection({ atom }: { atom: TransformedAtom }) {
         {loadingSimplified ? (
           <div className="loading-dots">Preparing a simpler breakdown…</div>
         ) : (
-          <div>
-            <p className="support-text">{simplifiedText}</p>
+          <div className="support-summary-card">
+            <div className="support-summary-header">
+              <span className="summary-chip">Quick concept</span>
+              <strong>What matters most</strong>
+            </div>
+            <div
+              className="support-text support-summary-text"
+              style={{ whiteSpace: "pre-wrap" }}
+            >
+              {simplifiedText}
+            </div>
             {supported && (
               <button
                 className="btn btn-sm btn-ghost"
@@ -348,7 +357,7 @@ function SupportSection({ atom }: { atom: TransformedAtom }) {
           </button>
         </div>
         {tutorAnswer && (
-          <div className="tutor-bubble">
+          <div className="tutor-bubble" style={{ whiteSpace: "pre-wrap" }}>
             <p style={{ margin: 0 }}>
               <strong>Tutor:</strong> {tutorAnswer}
             </p>
