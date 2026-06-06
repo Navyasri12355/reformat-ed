@@ -6,7 +6,11 @@ export type OutputFormat =
   | "asd_structured"
   | "blended";
 
-export type ReviewStatus = "pending" | "approved" | "rejected" | "auto_approved";
+export type ReviewStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "auto_approved";
 
 export interface User {
   id: string;
@@ -71,10 +75,18 @@ export interface RubricRow {
   how: string;
 }
 
+export interface SimulatorMeta {
+  type: string;
+  title: string;
+  concept: string;
+  steps: string[];
+  keywords: string[];
+}
+
 export interface AtomMeta {
   goal?: string;
   anchor?: string;
-  illustration?: string;
+  simulator?: SimulatorMeta;
   diagram?: string;
   poll?: PollMeta;
   keywords?: string[];

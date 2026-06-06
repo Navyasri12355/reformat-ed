@@ -21,7 +21,10 @@ export function DyslexiaFormat({
 
   // Break the transformed text into readable chunks: keep UPPERCASE headings
   // as their own labelled block, otherwise one short paragraph per chunk.
-  const chunks = useMemo(() => splitChunks(atom.transformed_text), [atom.transformed_text]);
+  const chunks = useMemo(
+    () => splitChunks(atom.transformed_text),
+    [atom.transformed_text],
+  );
 
   const keywords = atom.meta?.keywords ?? [];
   const [active, setActive] = useState(-1);
@@ -43,22 +46,34 @@ export function DyslexiaFormat({
             Listen to all
           </button>
         ) : (
-          <button className="btn btn-ghost" onClick={() => { stop(); setActive(-1); }}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              stop();
+              setActive(-1);
+            }}
+          >
             Stop
           </button>
         )}
         <span className="legend">
-          Colour key: <b className="syl-a">syllables</b> <b className="syl-b">alternate</b>{" "}
-          <b className="kw">key words</b>
+          Colour key: <b className="syl-a">syllables</b>{" "}
+          <b className="syl-b">alternate</b> <b className="kw">key words</b>
         </span>
         <span className="voice-tag">slow &amp; clear voice · {engine}</span>
-        {!supported && <span className="muted">Audio not supported in this browser.</span>}
+        {!supported && (
+          <span className="muted">Audio not supported in this browser.</span>
+        )}
       </div>
 
       <div className="anchor-wrap">
-        <Illustration kind={atom.meta?.illustration} />
+        <Illustration simulator={atom.meta?.simulator} />
       </div>
-      <ConceptDiagram code={atom.meta?.diagram} defaultOpen={false} />
+      <ConceptDiagram
+        simulator={atom.meta?.simulator}
+        keywords={atom.meta?.keywords}
+        defaultOpen={false}
+      />
 
       {chunks.map((chunk, i) =>
         chunk.heading ? (
@@ -66,7 +81,12 @@ export function DyslexiaFormat({
             {chunk.text}
           </h4>
         ) : (
-          <div className={active === i ? "dys-chunk dys-chunk-active" : "dys-chunk"} key={i}>
+          <div
+            className={
+              active === i ? "dys-chunk dys-chunk-active" : "dys-chunk"
+            }
+            key={i}
+          >
             <div className="dys-num">{numberOf(chunks, i)}</div>
             <div style={{ flex: 1 }}>
               <p className="dys-text">{colourise(chunk.text, keywords)}</p>
@@ -95,20 +115,25 @@ interface Chunk {
 }
 
 function splitChunks(text: string): Chunk[] {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   const out: Chunk[] = [];
   for (const line of lines) {
-    const isHeading = /^[A-Z0-9 ]{3,}$/.test(line) && line === line.toUpperCase();
+    const isHeading =
+      /^[A-Z0-9 ]{3,}$/.test(line) && line === line.toUpperCase();
     if (isHeading) {
       out.push({ text: line, heading: true });
     } else {
       // Split a paragraph into one chunk per sentence for digestible pieces.
       for (const sentence of line.split(/(?<=[.!?])\s+/)) {
-        if (sentence.trim()) out.push({ text: sentence.trim(), heading: false });
+        if (sentence.trim())
+          out.push({ text: sentence.trim(), heading: false });
       }
     }
   }
-  return out.length ? out : [{ text, heading: false }];
+  return (out.length ? out : [{ text, heading: false }]).slice(0, 5);
 }
 
 /** Sequential number among non-heading chunks only. */

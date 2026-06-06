@@ -11,34 +11,39 @@ import { Illustration } from "../Illustration";
 export function ADHDFormat({
   atom,
   onPollAnswered,
+  pollPassed = false,
 }: {
   atom: TransformedAtom;
   onPollAnswered?: (correct: boolean) => void;
+  pollPassed?: boolean;
 }) {
   const meta = atom.meta ?? {};
   const lines = atom.transformed_text.split("\n").filter((l) => l.trim());
-  const goal = meta.goal ?? strip(lines.find((l) => /mission brief|goal/i.test(l)) ?? "");
+  const goal =
+    meta.goal ?? strip(lines.find((l) => /mission brief|goal/i.test(l)) ?? "");
   const cue = lines.find((l) => /progress cue/i.test(l));
   // Group each "Challenge N:" with its following explanation lines; fall back to
   // sentence chunks if the model used no markers, so content is never dropped.
   const grouped = groupChallenges(atom.transformed_text);
-  const body = grouped.length
-    ? grouped
-    : lines
-        .filter((l) => !/mission brief|progress cue/i.test(l))
-        .join(" ")
-        .split(/(?<=[.!?])\s+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 1);
+  const body = (
+    grouped.length
+      ? grouped
+      : lines
+          .filter((l) => !/mission brief|progress cue/i.test(l))
+          .join(" ")
+          .split(/(?<=[.!?])\s+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 1)
+  ).slice(0, 3);
 
   return (
     <div className="fmt fmt-adhd">
       <div className="anchor-wrap">
-        <Illustration kind={meta.illustration} />
+        <Illustration simulator={meta.simulator} />
       </div>
       {goal && <div className="goal">Goal: {goal}</div>}
 
-      <ConceptDiagram code={meta.diagram} />
+      <ConceptDiagram simulator={meta.simulator} keywords={meta.keywords} />
 
       <div className="challenge-grid">
         {body.map((line, i) => (
@@ -50,7 +55,9 @@ export function ADHDFormat({
       </div>
 
       {meta.poll && <MicroPoll poll={meta.poll} onAnswered={onPollAnswered} />}
-      {cue && <div className="progress-cue">{strip(cue)}</div>}
+      {cue && (!meta.poll || pollPassed) && (
+        <div className="progress-cue">{strip(cue)}</div>
+      )}
     </div>
   );
 }
@@ -95,7 +102,9 @@ export function MicroPoll({
 }
 
 function strip(line: string): string {
-  return line.replace(/^(mission brief:|challenge\s*\d+:|progress cue:|goal:)/i, "").trim();
+  return line
+    .replace(/^(mission brief:|challenge\s*\d+:|progress cue:|goal:)/i, "")
+    .trim();
 }
 
 /** Group each "Challenge N:" marker with the explanation lines that follow it. */

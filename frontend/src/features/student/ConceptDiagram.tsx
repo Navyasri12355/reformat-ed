@@ -1,135 +1,86 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-
-let _mermaidReady: Promise<typeof import("mermaid").default> | null = null;
-
-function getMermaid() {
-  if (!_mermaidReady) {
-    _mermaidReady = import("mermaid").then((m) => {
-      m.default.initialize({
-        startOnLoad: false,
-        theme: "neutral",
-        securityLevel: "loose",
-        // Never inject Mermaid's "Syntax error" graphic into the page.
-        suppressErrorRendering: true,
-      });
-      return m.default;
-    });
-  }
-  return _mermaidReady;
-}
+import { useMemo, useState } from "react";
+import type { SimulatorMeta } from "../../api/types";
 
 /**
- * Interactive per-segment concept map from the backend's Mermaid `meta.diagram`.
- * Pan by dragging, zoom with the wheel or the +/- controls, and reset. Collapsible
- * so it never surprises the learner.
+ * HTML-only concept flow. Uses semantic div-based cards instead of Mermaid/SVG
+ * so the learning visual is topic-grounded and fully styleable.
  */
-export function ConceptDiagram({ code, defaultOpen = true }: { code?: string; defaultOpen?: boolean }) {
-  const svgRef = useRef<HTMLDivElement>(null);
+export function ConceptDiagram({
+  simulator,
+  keywords,
+  defaultOpen = true,
+}: {
+  simulator?: SimulatorMeta;
+  keywords?: string[];
+  defaultOpen?: boolean;
+}) {
   const [open, setOpen] = useState(defaultOpen);
-  const [failed, setFailed] = useState(false);
-  const reactId = useId().replace(/:/g, "");
 
-  // Pan/zoom transform.
-  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
-  const drag = useRef<{ x: number; y: number } | null>(null);
-
-  useEffect(() => {
-    if (!open || !code || !svgRef.current) return;
-    let active = true;
-    (async () => {
-      try {
-        const mermaid = await getMermaid();
-        // Validate first — returns false (does not throw) on bad syntax.
-        const ok = await mermaid.parse(code, { suppressErrors: true });
-        if (!active) return;
-        if (!ok) {
-          setFailed(true);
-          return;
-        }
-        const { svg } = await mermaid.render(`mmd-${reactId}`, code);
-        if (active && svgRef.current) {
-          svgRef.current.innerHTML = svg;
-          const el = svgRef.current.querySelector("svg");
-          if (el) {
-            el.removeAttribute("width");
-            el.removeAttribute("height");
-            el.style.width = "100%";
-            el.style.height = "auto";
-          }
-        }
-      } catch {
-        if (active) setFailed(true);
-      }
-    })();
-    return () => {
-      active = false;
+  const nodes = useMemo(() => {
+    const simulatorSteps = simulator?.steps?.filter(Boolean) ?? [];
+    const keywordNodes = (keywords ?? simulator?.keywords ?? [])
+      .filter(Boolean)
+      .slice(0, 4);
+    return {
+      title: simulator?.concept ?? "Main idea",
+      items: simulatorSteps.length ? simulatorSteps.slice(0, 4) : keywordNodes,
+      chips: keywordNodes,
     };
-  }, [code, open, reactId]);
+  }, [keywords, simulator]);
 
-  const zoom = useCallback((factor: number) => {
-    setView((v) => ({ ...v, scale: Math.min(4, Math.max(0.4, v.scale * factor)) }));
-  }, []);
-
-  const onWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault();
-      zoom(e.deltaY < 0 ? 1.12 : 0.89);
-    },
-    [zoom],
-  );
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    drag.current = { x: e.clientX - view.x, y: e.clientY - view.y };
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!drag.current) return;
-    setView((v) => ({ ...v, x: e.clientX - drag.current!.x, y: e.clientY - drag.current!.y }));
-  };
-  const onPointerUp = () => {
-    drag.current = null;
-  };
-  const reset = () => setView({ scale: 1, x: 0, y: 0 });
-
-  if (!code) return null;
+  if (!simulator && nodes.items.length === 0) return null;
 
   return (
-    <div className="concept-map">
+    <div className="concept-map html-concept-map">
       <div className="concept-bar">
         <button className="concept-toggle" onClick={() => setOpen((v) => !v)}>
           Concept map {open ? "▾" : "▸"}
         </button>
-        {open && !failed && (
-          <div className="concept-controls">
-            <button className="btn btn-sm btn-ghost" title="Zoom out" onClick={() => zoom(0.83)}>－</button>
-            <button className="btn btn-sm btn-ghost" title="Zoom in" onClick={() => zoom(1.2)}>＋</button>
-            <button className="btn btn-sm btn-ghost" title="Reset" onClick={reset}>⟲</button>
-            <span className="note">drag to pan · scroll to zoom</span>
-          </div>
+        {open && (
+          <span className="note">HTML concept flow · no SVG rendering</span>
         )}
       </div>
-      {open &&
-        (failed ? (
-          <p className="note">(diagram unavailable)</p>
-        ) : (
-          <div
-            className="concept-viewport"
-            onWheel={onWheel}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerLeave={onPointerUp}
-          >
+
+      {open && (
+        <div className="concept-viewport html-concept-viewport">
+          <div className="concept-html-wrap">
+            <div className="concept-root-card">
+              <div className="concept-root-label">Core concept</div>
+              <div className="concept-root-value">{nodes.title}</div>
+            </div>
+
             <div
-              className="concept-svg"
-              ref={svgRef}
-              style={{
-                transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-                transformOrigin: "center center",
-              }}
-            />
+              className="concept-branches"
+              role="list"
+              aria-label="Concept branches"
+            >
+              {nodes.items.map((item, index) => (
+                <div
+                  className="concept-branch"
+                  role="listitem"
+                  key={`${index}-${item}`}
+                >
+                  <div className="concept-connector" aria-hidden="true" />
+                  <div className="concept-node-card">
+                    <span className="concept-node-index">{index + 1}</span>
+                    <span>{item}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {nodes.chips.length > 0 && (
+              <div className="concept-chip-row">
+                {nodes.chips.map((chip) => (
+                  <span className="concept-chip" key={chip}>
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -5,12 +5,14 @@ derives the **interactive scaffolding** around it — directly from the source
 atom, so it is deterministic and identical regardless of which transform path
 ran:
 
-* ADHD  → one-line goal, a visual anchor, a per-segment concept diagram, and a
-          genuine fill-in-the-blank (cloze) check whose answer comes from the text
+* ADHD  → one-line goal, a topic-grounded HTML simulator card, a per-segment
+          concept diagram, and a genuine fill-in-the-blank (cloze) check whose
+          answer comes from the text
 * ASD   → a fixed lesson schedule, literal rewrites of any idioms found, a
-          real-world example, a concept diagram and a pre-shown rubric
-* Dyslexia → the key vocabulary to highlight + a concept diagram
-* Blended → goal + anchor + schedule + cloze check
+          real-world example, a concept diagram, a topic-grounded HTML simulator
+          and a pre-shown rubric
+* Dyslexia → the key vocabulary to highlight + a concept diagram + simulator
+* Blended → goal + simulator + schedule + cloze check
 
 The cloze question removes a real key word from a real sentence, so it is always
 answerable from reading the segment; distractors are other terms from the same
@@ -39,16 +41,16 @@ SUBJECT_ANCHOR = {
     "general": "📘",
 }
 
-# Subject "illustration" keys → the frontend draws a matching inline SVG.
-SUBJECT_ILLUSTRATION = {
-    "biology": "leaf",
-    "chemistry": "flask",
-    "physics": "atom",
-    "mathematics": "ruler",
-    "history": "scroll",
-    "literature": "book",
-    "computer_science": "chip",
-    "general": "bulb",
+# Subject keys → the frontend renders a matching HTML simulator card.
+SUBJECT_SIMULATOR = {
+    "biology": "cycle",
+    "chemistry": "reaction",
+    "physics": "motion",
+    "mathematics": "graph",
+    "history": "timeline",
+    "literature": "story",
+    "computer_science": "logic",
+    "general": "compare",
 }
 
 SUBJECT_REAL_WORLD = {
@@ -64,22 +66,102 @@ SUBJECT_REAL_WORLD = {
 
 # Plausible same-subject distractors for the cloze check.
 SUBJECT_TERMS = {
-    "biology": ["chloroplast", "chlorophyll", "mitochondria", "nucleus", "glucose",
-                "oxygen", "enzyme", "membrane", "organism", "photosynthesis"],
-    "chemistry": ["atom", "molecule", "electron", "compound", "reaction", "ion",
-                  "acid", "base", "bond", "element"],
-    "physics": ["force", "energy", "velocity", "mass", "acceleration", "gravity",
-                "momentum", "friction", "voltage", "current"],
-    "mathematics": ["equation", "function", "variable", "fraction", "integer",
-                    "angle", "ratio", "product", "factor", "polynomial"],
-    "history": ["empire", "revolution", "treaty", "monarchy", "democracy",
-                "colony", "dynasty", "republic", "alliance", "reform"],
-    "literature": ["metaphor", "narrator", "theme", "plot", "character", "symbol",
-                   "setting", "stanza", "rhyme", "genre"],
-    "computer_science": ["algorithm", "variable", "function", "array", "loop",
-                         "compiler", "memory", "database", "pointer", "recursion"],
-    "general": ["idea", "process", "reason", "result", "method", "cause",
-                "effect", "factor", "example", "pattern"],
+    "biology": [
+        "chloroplast",
+        "chlorophyll",
+        "mitochondria",
+        "nucleus",
+        "glucose",
+        "oxygen",
+        "enzyme",
+        "membrane",
+        "organism",
+        "photosynthesis",
+    ],
+    "chemistry": [
+        "atom",
+        "molecule",
+        "electron",
+        "compound",
+        "reaction",
+        "ion",
+        "acid",
+        "base",
+        "bond",
+        "element",
+    ],
+    "physics": [
+        "force",
+        "energy",
+        "velocity",
+        "mass",
+        "acceleration",
+        "gravity",
+        "momentum",
+        "friction",
+        "voltage",
+        "current",
+    ],
+    "mathematics": [
+        "equation",
+        "function",
+        "variable",
+        "fraction",
+        "integer",
+        "angle",
+        "ratio",
+        "product",
+        "factor",
+        "polynomial",
+    ],
+    "history": [
+        "empire",
+        "revolution",
+        "treaty",
+        "monarchy",
+        "democracy",
+        "colony",
+        "dynasty",
+        "republic",
+        "alliance",
+        "reform",
+    ],
+    "literature": [
+        "metaphor",
+        "narrator",
+        "theme",
+        "plot",
+        "character",
+        "symbol",
+        "setting",
+        "stanza",
+        "rhyme",
+        "genre",
+    ],
+    "computer_science": [
+        "algorithm",
+        "variable",
+        "function",
+        "array",
+        "loop",
+        "compiler",
+        "memory",
+        "database",
+        "pointer",
+        "recursion",
+    ],
+    "general": [
+        "idea",
+        "process",
+        "reason",
+        "result",
+        "method",
+        "cause",
+        "effect",
+        "factor",
+        "example",
+        "pattern",
+    ],
 }
 
 # Common idioms → literal meaning (for ASD literal-language support).
@@ -102,11 +184,51 @@ IDIOM_DICT: dict[str, str] = {
 }
 
 _STOPWORDS = {
-    "this", "that", "these", "those", "which", "their", "there", "where", "while",
-    "about", "into", "from", "with", "they", "them", "have", "uses", "used", "also",
-    "called", "inside", "using", "makes", "make", "takes", "take", "kind", "part",
-    "parts", "very", "many", "more", "most", "some", "what", "when", "then", "your",
-    "each", "other", "because", "around", "between", "things", "something",
+    "this",
+    "that",
+    "these",
+    "those",
+    "which",
+    "their",
+    "there",
+    "where",
+    "while",
+    "about",
+    "into",
+    "from",
+    "with",
+    "they",
+    "them",
+    "have",
+    "uses",
+    "used",
+    "also",
+    "called",
+    "inside",
+    "using",
+    "makes",
+    "make",
+    "takes",
+    "take",
+    "kind",
+    "part",
+    "parts",
+    "very",
+    "many",
+    "more",
+    "most",
+    "some",
+    "what",
+    "when",
+    "then",
+    "your",
+    "each",
+    "other",
+    "because",
+    "around",
+    "between",
+    "things",
+    "something",
 }
 
 
@@ -121,10 +243,10 @@ def build_meta(atom: dict, output_format: str) -> dict:
 
     keywords = extract_keywords(text, subject)
     diagram = build_diagram(subject, keywords, text=text)
-    illustration = SUBJECT_ILLUSTRATION[subject]
+    simulator = build_simulator(subject, keywords, text)
 
     if output_format == "dyslexia_audio":
-        return {"keywords": keywords, "illustration": illustration, "diagram": diagram}
+        return {"keywords": keywords, "simulator": simulator, "diagram": diagram}
 
     if output_format == "asd_structured":
         return {
@@ -132,7 +254,7 @@ def build_meta(atom: dict, output_format: str) -> dict:
             "idioms": detect_idioms(text),
             "real_world": SUBJECT_REAL_WORLD[subject],
             "rubric": build_rubric(subject),
-            "illustration": illustration,
+            "simulator": simulator,
             "diagram": diagram,
         }
 
@@ -140,7 +262,7 @@ def build_meta(atom: dict, output_format: str) -> dict:
         return {
             "goal": build_goal(text, subject),
             "anchor": SUBJECT_ANCHOR[subject],
-            "illustration": illustration,
+            "simulator": simulator,
             "diagram": diagram,
             "poll": build_poll(text, keywords, subject),
         }
@@ -149,7 +271,7 @@ def build_meta(atom: dict, output_format: str) -> dict:
     return {
         "goal": build_goal(text, subject),
         "anchor": SUBJECT_ANCHOR[subject],
-        "illustration": illustration,
+        "simulator": simulator,
         "diagram": diagram,
         "schedule": ["Schedule", "Content", "Summary", "Quiz"],
         "poll": build_poll(text, keywords, subject),
@@ -185,10 +307,42 @@ def extract_keywords(text: str, subject: str, limit: int = 5) -> list[str]:
 
 def build_goal(text: str, subject: str) -> str:
     first = (split_sentences(text) or [text])[0].strip()
-    words = first.split()
-    if len(words) <= 12:
-        return first
-    return " ".join(words[:10]).rstrip(".,") + "…"
+    first = re.sub(r"\s+", " ", first)
+    if len(first) <= 120:
+        return first.rstrip()
+    trimmed = first[:120].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return f"{trimmed}."
+
+
+def build_simulator(subject: str, keywords: list[str], text: str) -> dict:
+    lines = [s.strip() for s in split_sentences(text) if s.strip()]
+    title = {
+        "biology": "Biology process simulator",
+        "chemistry": "Chemistry reaction simulator",
+        "physics": "Physics motion simulator",
+        "mathematics": "Math pattern simulator",
+        "history": "History timeline simulator",
+        "literature": "Literature structure simulator",
+        "computer_science": "Code logic simulator",
+        "general": "Concept comparison simulator",
+    }[subject]
+    concept = (
+        keywords[0].replace("_", " ").title()
+        if keywords
+        else subject.replace("_", " ").title()
+    )
+    steps = [re.sub(r"\s+", " ", s) for s in lines[:4]] or [text.strip()]
+    steps = [
+        s if len(s) <= 120 else s[:120].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+        for s in steps
+    ]
+    return {
+        "type": SUBJECT_SIMULATOR[subject],
+        "title": title,
+        "concept": concept,
+        "steps": steps,
+        "keywords": keywords[:4],
+    }
 
 
 def detect_idioms(text: str) -> list[dict]:
@@ -246,7 +400,12 @@ def mermaid_from_concepts(nodes: list[str], edges: list) -> str | None:
             a, b = int(edge[0]), int(edge[1])
         except (TypeError, ValueError, IndexError, KeyError):
             continue
-        if 0 <= a < len(labels) and 0 <= b < len(labels) and a != b and (a, b) not in seen:
+        if (
+            0 <= a < len(labels)
+            and 0 <= b < len(labels)
+            and a != b
+            and (a, b) not in seen
+        ):
             lines.append(f"    N{a} --> N{b}")
             seen.add((a, b))
             emitted = True
@@ -313,46 +472,69 @@ def build_diagram(subject: str, keywords: list[str], text: str = "") -> str:
 
 
 def build_poll(text: str, keywords: list[str], subject: str) -> dict:
-    """A fill-in-the-blank (cloze) check, answerable purely from this segment.
+    """Build a high-value quick check from the main idea, not a random noun.
 
-    A real key word is removed from a real sentence; the correct option is that
-    word, and the distractors are other terms from the same subject (so every
-    option is plausible, not obviously off-topic). Deterministic per atom.
+    The blank should target a concept-bearing term from the earliest important
+    sentence so the question checks understanding of the section's key point.
     """
-    sentences = split_sentences(text) or [text]
+    sentences = [s.strip() for s in (split_sentences(text) or [text]) if s.strip()]
+    focus_sentences = sentences[:3] or sentences
     answer = ""
     blanked = ""
 
-    # Find a sentence that contains a key word we can blank out.
-    for kw in keywords:
-        for sentence in sentences:
-            pattern = re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
-            if pattern.search(sentence) and len(sentence.split()) >= 5:
-                answer = kw
-                blanked = pattern.sub("______", sentence, count=1).strip()
+    candidate_terms = [kw for kw in keywords if len(kw) >= 5]
+    preferred_terms = [
+        term
+        for term in candidate_terms
+        if term.lower()
+        not in {"organism", "example", "process", "result", "method", "factor"}
+    ]
+
+    for sentence in focus_sentences:
+        for term in preferred_terms + candidate_terms:
+            if re.search(rf"\b{re.escape(term)}\b", sentence, re.I):
+                answer = term
+                blanked = re.sub(
+                    rf"\b{re.escape(term)}\b", "______", sentence, count=1, flags=re.I
+                ).strip()
                 break
-        if answer:
+        if blanked:
             break
 
-    # Fallback: blank the longest word in the first usable sentence.
-    if not answer:
-        sentence = next((s for s in sentences if len(s.split()) >= 5), sentences[0])
-        words = re.findall(r"[A-Za-z]{4,}", sentence)
-        answer = max(words, key=len) if words else (keywords[0] if keywords else "idea")
-        blanked = re.sub(rf"\b{re.escape(answer)}\b", "______", sentence, count=1).strip()
+    if not blanked:
+        sentence = next(
+            (s for s in focus_sentences if len(s.split()) >= 5), focus_sentences[0]
+        )
+        words = [
+            w
+            for w in re.findall(r"[A-Za-z]{5,}", sentence)
+            if w.lower() not in _STOPWORDS
+            and w.lower() not in {"organism", "important", "information"}
+        ]
+        answer = (
+            words[0] if words else (candidate_terms[0] if candidate_terms else "idea")
+        )
+        blanked = re.sub(
+            rf"\b{re.escape(answer)}\b", "______", sentence, count=1, flags=re.I
+        ).strip()
 
-    # Same-subject distractors that are NOT the answer and NOT in this sentence.
     pool = SUBJECT_TERMS.get(subject, SUBJECT_TERMS["general"])
     lower_blank = blanked.lower()
     distractors = [
-        t for t in pool
-        if t.lower() != answer.lower() and t.lower() not in lower_blank
+        t
+        for t in pool
+        if t.lower() != answer.lower()
+        and t.lower() not in lower_blank
+        and t.lower() not in {"organism", "example", "process"}
     ][:2]
-    # Supplement from other keywords if the pool was thin.
-    for kw in keywords:
+    for kw in candidate_terms:
         if len(distractors) >= 2:
             break
-        if kw.lower() != answer.lower() and kw.lower() not in lower_blank and kw not in distractors:
+        if (
+            kw.lower() != answer.lower()
+            and kw.lower() not in lower_blank
+            and kw not in distractors
+        ):
             distractors.append(kw)
     while len(distractors) < 2:
         distractors.append(f"{subject} term {len(distractors) + 1}")

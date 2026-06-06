@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from string import punctuation
 
 from app import logging_config as log
 from app.config import settings
@@ -58,9 +59,12 @@ def transform_atom(atom: dict, weights: ProfileWeights) -> TransformResult:
             # Local generators are designed to pass; if they ever don't, the
             # raw atom is still a safe, truthful fallback.
             text = _transform_locally(atom, output_format, weights)
-            passed = validate_transform_output(atom["raw_text"], text, output_format).passed
+            passed = validate_transform_output(
+                atom["raw_text"], text, output_format
+            ).passed
 
-    text = strip_markdown(text)
+    text = finalize_transform_text(text, atom["raw_text"], output_format)
+    passed = validate_transform_output(atom["raw_text"], text, output_format).passed
     generation_ms = int((time.perf_counter() - start) * 1000)
     model = settings.openai_model if settings.openai_api_key else LOCAL_MODEL_NAME
 
@@ -79,7 +83,9 @@ def transform_atom(atom: dict, weights: ProfileWeights) -> TransformResult:
 # --------------------------------------------------------------------------- #
 # OpenAI path
 # --------------------------------------------------------------------------- #
-def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeights) -> tuple[str, bool]:
+def _transform_with_openai(
+    atom: dict, output_format: str, weights: ProfileWeights
+) -> tuple[str, bool]:
     try:
         from openai import OpenAI
     except ImportError:  # pragma: no cover
@@ -95,10 +101,15 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
     def call(fmt: str, strict: bool = False) -> str:
         system, user = prompt_loader.render(fmt, atom)
         if strict:
-            system += "\n\nYOUR PREVIOUS OUTPUT FAILED VALIDATION. Follow every rule exactly."
+            system += (
+                "\n\nYOUR PREVIOUS OUTPUT FAILED VALIDATION. Follow every rule exactly."
+            )
         resp = client.chat.completions.create(
             model=settings.openai_model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
             temperature=settings.openai_temperature,
             max_tokens=2048,
         )
@@ -111,7 +122,9 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
 
             text_a = call(FORMAT_FOR_TRAIT[primary_trait])
             text_b = call(FORMAT_FOR_TRAIT[secondary_trait])
-            text = _blend_with_openai(client, text_a, text_b, FORMAT_FOR_TRAIT[secondary_trait])
+            text = _blend_with_openai(
+                client, text_a, text_b, FORMAT_FOR_TRAIT[secondary_trait]
+            )
         else:
             text = call(output_format)
 
@@ -123,15 +136,23 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
         if not result.passed:
             # Guarantee a valid, on-format result regardless of model behaviour.
             text = _transform_locally(atom, output_format, weights)
-            return text, validate_transform_output(atom["raw_text"], text, output_format).passed
+            return text, validate_transform_output(
+                atom["raw_text"], text, output_format
+            ).passed
         return text, True
     except Exception as exc:  # network / rate-limit / API error → safe local fallback
-        log.error("openai_transform_failed", error=str(exc), model=settings.openai_model)
+        log.error(
+            "openai_transform_failed", error=str(exc), model=settings.openai_model
+        )
         text = _transform_locally(atom, output_format, weights)
-        return text, validate_transform_output(atom["raw_text"], text, output_format).passed
+        return text, validate_transform_output(
+            atom["raw_text"], text, output_format
+        ).passed
 
 
-def _blend_with_openai(client, version_a: str, version_b: str, second_format: str) -> str:
+def _blend_with_openai(
+    client, version_a: str, version_b: str, second_format: str
+) -> str:
     prompt = (
         "You are given two versions of the same educational content, each formatted "
         "for a different learning need. Merge them into one coherent version that "
@@ -164,13 +185,28 @@ def _transform_locally(atom: dict, output_format: str, weights: ProfileWeights) 
     return _local_blended(text, subject)
 
 
-_MAX_POINTS = 30  # generous cap so we never silently drop a segment's content
+_MAX_POINTS = 5
+_ADHD_POINTS = 3
+_ASD_POINTS = 4
+_BLENDED_POINTS = 4
+_DYSLEXIA_SENTENCES = 3
 
 
 def _sentences(text: str) -> list[str]:
     """All non-empty sentences of an atom — never truncated, never broken."""
-    out = [s.strip() for s in (split_sentences(text) or [text]) if s.strip()]
-    return out or [text.strip()]
+    out = [
+        normalise_sentence(s) for s in (split_sentences(text) or [text]) if s.strip()
+    ]
+    return out or [normalise_sentence(text.strip())]
+
+
+def normalise_sentence(sentence: str) -> str:
+    sentence = re.sub(r"\s+", " ", sentence or "").strip()
+    if not sentence:
+        return sentence
+    if sentence[-1] not in ".!?":
+        sentence = sentence.rstrip(punctuation + " ") + "."
+    return sentence
 
 
 def _readable(sentence: str, max_words: int = 22) -> str:
@@ -180,53 +216,82 @@ def _readable(sentence: str, max_words: int = 22) -> str:
     if len(sentence.split()) <= max_words:
         return sentence
     softened = re.sub(r"\s*[;:]\s+", ". ", sentence)
-    softened = re.sub(r",\s+(?=(and|but|which|where|while|so|because)\b)", ". ", softened)
+    softened = re.sub(
+        r",\s+(?=(and|but|which|where|while|so|because)\b)", ". ", softened
+    )
     return softened
 
 
+def _focus_points(text: str, limit: int) -> list[str]:
+    points = _sentences(text)
+    cleaned = [re.sub(r"\s+", " ", p).strip() for p in points if p.strip()]
+    return cleaned[:limit] or cleaned[:1]
+
+
+def _plain_rephrase(sentence: str) -> str:
+    sentence = _readable(sentence, max_words=16)
+    sentence = re.sub(
+        r"\bprovides important information about\b", "shows", sentence, flags=re.I
+    )
+    sentence = re.sub(r"\bis a collection of\b", "includes", sentence, flags=re.I)
+    sentence = re.sub(r"\bwith a wide range of\b", "with many", sentence, flags=re.I)
+    sentence = re.sub(
+        r"\bphysiochemical\b", "physical and chemical", sentence, flags=re.I
+    )
+    return normalise_sentence(sentence)
+
+
 def _local_adhd(text: str, subject: str) -> str:
-    points = _sentences(text)[:_MAX_POINTS]
-    lines = [f"Mission Brief: Your goal is to understand {subject}, one quick step at a time."]
+    points = [_plain_rephrase(p) for p in _focus_points(text, _ADHD_POINTS)]
+    lines = [f"Mission Brief: Learn the main idea of {subject} in 3 quick moves."]
     for i, point in enumerate(points, start=1):
         lines.append(f"Challenge {i}: {point}")
-    lines.append("Progress Cue: Nice work — you cleared this step. Next up, keep the streak going!")
+    lines.append(
+        "Progress Cue: Good job. You finished the important part of this section."
+    )
     return "\n".join(lines)
 
 
 def _local_dyslexia(text: str, subject: str) -> str:
-    body = " ".join(_readable(s) for s in _sentences(text))
+    points = [_plain_rephrase(p) for p in _focus_points(text, _DYSLEXIA_SENTENCES)]
+    body = "\n".join(points)
     return (
         "KEY IDEA\n\n"
         f"{body}\n\n"
         "REMEMBER\n\n"
-        "Take your time. You can listen to this as many times as you like."
+        "Take your time. Listen again if you need to."
     )
 
 
 def _local_asd(text: str, subject: str) -> str:
-    points = _sentences(text)[:_MAX_POINTS]
-    lines = [f"What you will learn: You will understand the key facts about {subject}.", ""]
+    points = [_plain_rephrase(p) for p in _focus_points(text, _ASD_POINTS)]
+    lines = [
+        f"What you will learn: You will learn the key facts about {subject} in a fixed order.",
+        "",
+    ]
     for i, point in enumerate(points, start=1):
         lines.append(f"Step {i}: {point}")
     lines.append("")
     lines.append(
-        f"What you learned: You now understand the key facts about {subject}, one step at a time."
+        f"What you learned: You reviewed {len(points)} key facts about {subject}."
     )
     return "\n".join(lines)
 
 
 def _local_blended(text: str, subject: str) -> str:
-    points = _sentences(text)[:_MAX_POINTS]
+    points = [_plain_rephrase(p) for p in _focus_points(text, _BLENDED_POINTS)]
     lines = [
-        f"Mission Brief: Your goal is to understand {subject}, one clear step at a time.",
+        f"Mission Brief: Learn the main ideas of {subject} in short, clear steps.",
         "",
-        "What you will learn: The key facts below, broken into short steps.",
+        "What you will learn: The most important ideas only.",
         "",
     ]
     for i, point in enumerate(points, start=1):
-        lines.append(f"Step {i}: {_readable(point)}")
+        lines.append(f"Step {i}: {point}")
     lines.append("")
-    lines.append("Progress Cue: Great — you finished this step. Next up, the following idea.")
+    lines.append(
+        "Progress Cue: You finished this short section. Move on when you are ready."
+    )
     return "\n".join(lines)
 
 
@@ -251,6 +316,45 @@ def strip_markdown(text: str) -> str:
     text = text.replace("**", "").replace("__", "")
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def finalize_transform_text(text: str, original_text: str, output_format: str) -> str:
+    text = strip_markdown(text)
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
+    cleaned: list[str] = []
+    for line in lines:
+        if not line:
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+            continue
+        header_match = re.match(
+            r"^((?:Mission Brief|Progress Cue|What you will learn|What you learned|Key Idea|Remember)):\s*(.*)$",
+            line,
+            re.I,
+        )
+        step_match = re.match(
+            r"^((?:Step|Challenge)\s*\d+)\s*[:.)-]?\s*(.*)$", line, re.I
+        )
+        if header_match:
+            label, body = header_match.groups()
+            body = normalise_sentence(body) if body else ""
+            cleaned.append(f"{label}: {body}".strip())
+        elif step_match:
+            label, body = step_match.groups()
+            body = normalise_sentence(body) if body else ""
+            cleaned.append(f"{label}: {body}".strip())
+        else:
+            cleaned.append(normalise_sentence(line))
+    final = "\n".join(cleaned).strip()
+    return (
+        final
+        if final
+        else _transform_locally(
+            {"raw_text": original_text, "subject": "this topic"},
+            output_format,
+            ProfileWeights(0.0, 0.0, 0.0),
+        )
+    )
 
 
 def clean_for_tts(text: str) -> str:
