@@ -40,9 +40,11 @@ def run_ingestion(document_id: str) -> str:
     return _submit_inline(ingest_document, document_id)
 
 
-def run_transform(document_id: str, student_id: str) -> str:
+def run_transform(document_id: str, student_id: str, force_auto_approve: bool = False) -> str:
     if settings.task_backend == "celery":
         from app.workers.tasks import transform_document_task
 
-        return transform_document_task.delay(document_id, student_id).id
-    return _submit_inline(transform_document_for_student, document_id, student_id)
+        return transform_document_task.delay(document_id, student_id, force_auto_approve).id
+    return _submit_inline(
+        transform_document_for_student, document_id, student_id, force_auto_approve
+    )

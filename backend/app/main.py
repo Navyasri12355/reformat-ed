@@ -47,12 +47,15 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["meta"])
     def health() -> dict:
+        llm_active = bool(settings.openai_api_key)
         return {
             "status": "ok",
             "app": settings.app_name,
             "version": __version__,
             "task_backend": settings.task_backend,
-            "llm": "openai" if settings.openai_api_key else "local-rules",
+            "llm": "active" if llm_active else "local-rules",
+            "llm_model": settings.openai_model if llm_active else None,
+            "llm_endpoint": settings.openai_base_url if llm_active else None,
         }
 
     return app

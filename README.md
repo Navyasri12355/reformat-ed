@@ -21,30 +21,24 @@ points) **quietly recalibrate the profile** over time.
 
 ---
 
-## 👀 For evaluators — try it in 30 seconds, no install
+## 👀 What each learner profile gets (live in the app)
 
-> **Open [`docs/simulator.html`](docs/simulator.html) in any browser.**
-
-It's a fully self-contained prototype (no backend, no login). Switch between
-**Maya (Dyslexia)**, **Leo (ADHD)**, **Sam (ASD)** and **Ava (Blended)** and watch
-the *same* photosynthesis lesson rebuild itself live:
+Every lesson segment is reframed by the LLM and rendered with profile-specific
+support and **concept-explaining visuals** (a subject illustration + an
+interactive Mermaid concept map per segment):
 
 - **Dyslexia** → OpenDyslexic font, colour-coded syllables, highlighted key
   words, chunked + numbered sections, click-to-listen audio.
-- **ADHD** → 3–5 min micro-segments with one explicit goal, a visual anchor
-  before each, progress bar + token reward, 1-question micro-poll, a floating
-  **Pomodoro timer**, **distraction-free mode** (press <kbd>F</kbd>) and a
-  **sticky-note impulse pad**.
+- **ADHD** → micro-segments with one explicit goal, a visual anchor before each,
+  progress, a 1-question micro-poll, and floating **Pomodoro timer**,
+  **distraction-free mode** (press <kbd>F</kbd>) and a **sticky-note pad**.
 - **ASD** → numbered visual schedule, identical schedule→content→summary→quiz
-  template, **idioms flagged and rewritten literally** (hover the dotted text),
-  a "show me a real-world example" button, rubric shown *before* the task, and
-  zero autoplay / flashing / pop-ups.
+  template, **idioms flagged and rewritten literally**, a "show me a real-world
+  example" button, rubric shown *before* the task, and zero autoplay/flashing.
 
-Diagrams (system flow, sequence, class, state — Mermaid/UML) are in
+A **dark-mode toggle** is available everywhere. Architecture diagrams (system
+flow, sequence, class, state — Mermaid/UML) are in
 **[`docs/diagrams.md`](docs/diagrams.md)**.
-
-The same accessibility treatment (OpenDyslexic, colour-coded numbered chunks)
-also ships in the real React app's `DyslexiaFormat`.
 
 ---
 
@@ -97,9 +91,10 @@ docker-compose.yml   Production-flavoured stack (Postgres + Redis + Celery)
   (`pip install TTS`, modulated with librosa), and otherwise spoken by the
   browser voice using the *same* rate/pitch — so the modulation is identical
   either way. `GET /tts/profile`, `POST /tts/audio`.
-- **The HTML simulator is reachable from the app** (the student home's
-  "Explore all formats ↗" opens `/simulator.html`).
-- **Tests** — 29 backend tests (incl. a full upload→deliver→signal e2e) and a
+- **Concept-explaining visuals in every lesson** — a subject SVG illustration
+  plus an interactive (zoom/pan) Mermaid concept map generated per segment
+  (`Illustration.tsx`, `ConceptDiagram.tsx`).
+- **Tests** — backend tests (incl. a full upload→deliver→signal e2e) and a
   frontend unit + build check, all green.
 
 ### Deferred (documented, not built)

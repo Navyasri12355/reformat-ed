@@ -1,0 +1,32 @@
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 7.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 12.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 9.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 12.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 15.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 2.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 9.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 11.000000 seconds"}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\""}
+{"level": "INFO", "logger": "openai._base_client", "message": "Retrying request to /chat/completions in 5.000000 seconds"}

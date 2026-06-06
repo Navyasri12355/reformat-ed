@@ -80,8 +80,11 @@ class AtomCandidate:
 class CurriculumAtomiser:
     def __init__(
         self,
-        target_words_per_atom: int = 150,
-        max_words_per_atom: int = 250,
+        # Higher thresholds keep complete ideas together so a segment is never
+        # cut off mid-explanation. A single sentence is only ever split if it
+        # alone exceeds `max_words_per_atom` (rare for real prose).
+        target_words_per_atom: int = 220,
+        max_words_per_atom: int = 500,
         min_words_per_atom: int = 40,
     ):
         if not (min_words_per_atom <= target_words_per_atom <= max_words_per_atom):

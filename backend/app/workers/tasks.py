@@ -23,9 +23,9 @@ def ingest_document_task(self, document_id: str) -> dict:
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30)
-def transform_document_task(self, document_id: str, student_id: str) -> dict:
+def transform_document_task(self, document_id: str, student_id: str, force_auto_approve: bool = False) -> dict:
     try:
-        return transform_document_for_student(document_id, student_id)
+        return transform_document_for_student(document_id, student_id, force_auto_approve)
     except Exception as exc:  # noqa: BLE001
         raise self.retry(exc=exc)
 

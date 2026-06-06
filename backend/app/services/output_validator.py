@@ -1,12 +1,15 @@
 """Quality gate for LLM (or local) transform output.
 
-Catches refusals, hallucinated padding, empty output and format-rule violations
-before content is ever stored or shown to a student.
+Deliberately lenient: it only rejects output that is genuinely unusable — a model
+refusal, near-empty text, or implausibly long hallucinated padding. It does NOT
+reject content for "expanding" the original or for missing exact structure
+markers, because accessibility reframing legitimately rewrites and lengthens
+text. (Over-strict checks here were causing good reframed output to be thrown
+away in favour of the raw, unreframed fallback.)
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 FORBIDDEN_PHRASES = (
@@ -14,9 +17,17 @@ FORBIDDEN_PHRASES = (
     "i cannot",
     "i'm unable",
     "i am unable",
+    "i can't help",
     "original curriculum content",
-    "rewrite this content",
+    "rewrite this content following",
+    "here is the rewritten",  # meta-preamble leak
 )
+
+MIN_WORDS = 12
+# Only flag truly runaway output (hallucinated padding), with a generous floor
+# so short atoms can still be reframed into fuller explanations.
+RUNAWAY_MULTIPLIER = 8
+RUNAWAY_FLOOR_WORDS = 400
 
 
 @dataclass
@@ -27,34 +38,19 @@ class ValidationResult:
 
 def validate_transform_output(original: str, transformed: str, output_format: str) -> ValidationResult:
     issues: list[str] = []
-    original_words = len(original.split())
+    transformed = (transformed or "").strip()
     transformed_words = len(transformed.split())
+    original_words = len(original.split())
 
-    if transformed_words < 20:
-        issues.append("Output is too short (< 20 words)")
-
-    if original_words and transformed_words > original_words * 3:
-        issues.append(
-            f"Output too long ({transformed_words} words vs {original_words} original)"
-        )
+    if transformed_words < MIN_WORDS:
+        issues.append(f"Output is too short (< {MIN_WORDS} words)")
 
     lower = transformed.lower()
     for phrase in FORBIDDEN_PHRASES:
         if phrase in lower:
-            issues.append(f"Output contains forbidden phrase: '{phrase}'")
+            issues.append(f"Output contains a refusal/meta phrase: '{phrase}'")
 
-    if output_format in ("adhd_gamified", "blended"):
-        if "mission" not in lower and "goal" not in lower:
-            issues.append("ADHD format missing mission/goal framing")
-
-    if output_format in ("asd_structured", "blended"):
-        if not re.search(r"(step\s*\d|what you will learn|what you learned)", lower):
-            issues.append("ASD format missing required structure markers")
-
-    if output_format in ("dyslexia_audio", "blended"):
-        sentences = [s for s in re.split(r"[.!?]+", transformed) if s.strip()]
-        long_sentences = [s for s in sentences if len(s.split()) > 20]
-        if len(long_sentences) > 2:
-            issues.append(f"Dyslexia format has {len(long_sentences)} sentences over 20 words")
+    if original_words and transformed_words > max(original_words * RUNAWAY_MULTIPLIER, RUNAWAY_FLOOR_WORDS):
+        issues.append(f"Output is implausibly long ({transformed_words} words)")
 
     return ValidationResult(passed=not issues, issues=issues)

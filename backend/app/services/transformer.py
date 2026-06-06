@@ -15,6 +15,7 @@ import re
 import time
 from dataclasses import dataclass
 
+from app import logging_config as log
 from app.config import settings
 from app.services.atomiser import split_sentences
 from app.services.enrich import build_meta
@@ -59,6 +60,7 @@ def transform_atom(atom: dict, weights: ProfileWeights) -> TransformResult:
             text = _transform_locally(atom, output_format, weights)
             passed = validate_transform_output(atom["raw_text"], text, output_format).passed
 
+    text = strip_markdown(text)
     generation_ms = int((time.perf_counter() - start) * 1000)
     model = settings.openai_model if settings.openai_api_key else LOCAL_MODEL_NAME
 
@@ -81,6 +83,7 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
     try:
         from openai import OpenAI
     except ImportError:  # pragma: no cover
+        log.warning("openai_not_installed", hint="pip install openai")
         return _transform_locally(atom, output_format, weights), True
 
     client = OpenAI(
@@ -97,7 +100,7 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
             model=settings.openai_model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=settings.openai_temperature,
-            max_tokens=700,
+            max_tokens=2048,
         )
         return (resp.choices[0].message.content or "").strip()
 
@@ -122,7 +125,8 @@ def _transform_with_openai(atom: dict, output_format: str, weights: ProfileWeigh
             text = _transform_locally(atom, output_format, weights)
             return text, validate_transform_output(atom["raw_text"], text, output_format).passed
         return text, True
-    except Exception:  # network / rate-limit / API error → safe local fallback
+    except Exception as exc:  # network / rate-limit / API error → safe local fallback
+        log.error("openai_transform_failed", error=str(exc), model=settings.openai_model)
         text = _transform_locally(atom, output_format, weights)
         return text, validate_transform_output(atom["raw_text"], text, output_format).passed
 
@@ -140,7 +144,7 @@ def _blend_with_openai(client, version_a: str, version_b: str, second_format: st
         model=settings.openai_model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
-        max_tokens=800,
+        max_tokens=2048,
     )
     return (resp.choices[0].message.content or "").strip()
 
@@ -160,49 +164,48 @@ def _transform_locally(atom: dict, output_format: str, weights: ProfileWeights) 
     return _local_blended(text, subject)
 
 
-def _key_points(text: str, limit: int) -> list[str]:
-    sentences = split_sentences(text) or [text]
-    return [s.strip() for s in sentences[:limit] if s.strip()]
+_MAX_POINTS = 30  # generous cap so we never silently drop a segment's content
 
 
-def _shorten(sentence: str, max_words: int = 14) -> list[str]:
-    """Split one sentence into chunks of at most ``max_words`` words."""
-    words = sentence.split()
-    if len(words) <= max_words:
-        return [sentence.strip()]
-    chunks = []
-    for i in range(0, len(words), max_words):
-        chunk = " ".join(words[i : i + max_words]).strip()
-        if chunk:
-            chunks.append(chunk if chunk.endswith((".", "!", "?")) else chunk + ".")
-    return chunks
+def _sentences(text: str) -> list[str]:
+    """All non-empty sentences of an atom — never truncated, never broken."""
+    out = [s.strip() for s in (split_sentences(text) or [text]) if s.strip()]
+    return out or [text.strip()]
+
+
+def _readable(sentence: str, max_words: int = 22) -> str:
+    """Keep a sentence whole. If it is very long, soften it by turning clause
+    boundaries (commas/semicolons) into sentence stops — WITHOUT cutting words
+    or fabricating breaks mid-clause."""
+    if len(sentence.split()) <= max_words:
+        return sentence
+    softened = re.sub(r"\s*[;:]\s+", ". ", sentence)
+    softened = re.sub(r",\s+(?=(and|but|which|where|while|so|because)\b)", ". ", softened)
+    return softened
 
 
 def _local_adhd(text: str, subject: str) -> str:
-    points = _key_points(text, 4)
-    lines = [f"Mission Brief: Your goal is to master {subject} in a few quick steps."]
+    points = _sentences(text)[:_MAX_POINTS]
+    lines = [f"Mission Brief: Your goal is to understand {subject}, one quick step at a time."]
     for i, point in enumerate(points, start=1):
         lines.append(f"Challenge {i}: {point}")
-    lines.append(
-        "Progress Cue: Nice work — you cleared this step. Next up, keep the streak going!"
-    )
+    lines.append("Progress Cue: Nice work — you cleared this step. Next up, keep the streak going!")
     return "\n".join(lines)
 
 
 def _local_dyslexia(text: str, subject: str) -> str:
-    short_lines: list[str] = []
-    for sentence in (split_sentences(text) or [text]):
-        short_lines.extend(_shorten(sentence, max_words=14))
-    body = " ".join(short_lines)
-    return f"KEY IDEA\n\n{body}\n\nREMEMBER\n\nTake your time. You can listen to this as many times as you like."
+    body = " ".join(_readable(s) for s in _sentences(text))
+    return (
+        "KEY IDEA\n\n"
+        f"{body}\n\n"
+        "REMEMBER\n\n"
+        "Take your time. You can listen to this as many times as you like."
+    )
 
 
 def _local_asd(text: str, subject: str) -> str:
-    points = _key_points(text, 6)
-    lines = [
-        f"What you will learn: You will understand the key facts about {subject}.",
-        "",
-    ]
+    points = _sentences(text)[:_MAX_POINTS]
+    lines = [f"What you will learn: You will understand the key facts about {subject}.", ""]
     for i, point in enumerate(points, start=1):
         lines.append(f"Step {i}: {point}")
     lines.append("")
@@ -213,7 +216,7 @@ def _local_asd(text: str, subject: str) -> str:
 
 
 def _local_blended(text: str, subject: str) -> str:
-    points = _key_points(text, 4)
+    points = _sentences(text)[:_MAX_POINTS]
     lines = [
         f"Mission Brief: Your goal is to understand {subject}, one clear step at a time.",
         "",
@@ -221,9 +224,7 @@ def _local_blended(text: str, subject: str) -> str:
         "",
     ]
     for i, point in enumerate(points, start=1):
-        chunks = _shorten(point, max_words=14)
-        lines.append(f"Step {i}: {chunks[0]}")
-        lines.extend(f"        {chunk}" for chunk in chunks[1:])
+        lines.append(f"Step {i}: {_readable(point)}")
     lines.append("")
     lines.append("Progress Cue: Great — you finished this step. Next up, the following idea.")
     return "\n".join(lines)
@@ -232,6 +233,26 @@ def _local_blended(text: str, subject: str) -> str:
 # --------------------------------------------------------------------------- #
 # TTS cleanup
 # --------------------------------------------------------------------------- #
+def strip_markdown(text: str) -> str:
+    """Remove markdown formatting that LLMs add (so it never shows as literal
+    `**`, `#`, backticks, list bullets) while keeping the words and line breaks."""
+    if not text:
+        return text
+    # Bold/italic markers: **x**, __x__, *x*, _x_  → x
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    text = re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"\1", text)
+    text = re.sub(r"`{1,3}([^`]*)`{1,3}", r"\1", text)
+    # Leading heading hashes and list bullets at line starts.
+    text = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", text)
+    text = re.sub(r"(?m)^\s*[-*+]\s+", "", text)
+    # Any stray remaining bold/italic asterisks/underscores.
+    text = text.replace("**", "").replace("__", "")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def clean_for_tts(text: str) -> str:
     """Strip markdown/symbols so a TTS engine reads cleanly."""
     text = re.sub(r"[#*_`~>|]", "", text)

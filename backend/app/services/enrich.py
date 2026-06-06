@@ -20,6 +20,7 @@ subject, so every option is plausible.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 
 from app.services.atomiser import SUBJECT_KEYWORDS, split_sentences
@@ -217,61 +218,97 @@ def build_rubric(subject: str) -> list[dict]:
     ]
 
 
+_LABEL_BREAKERS = re.compile(r"""["'`()\[\]{}|<>;#&%:]""")
+
+
+def _clean_label(text: str) -> str:
+    """Make a node label safe for Mermaid: letters/numbers/spaces/hyphens only."""
+    text = _LABEL_BREAKERS.sub(" ", str(text))
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:48] or "node"
+
+
+def mermaid_from_concepts(nodes: list[str], edges: list) -> str | None:
+    """Build GUARANTEED-valid Mermaid from a node/edge list. We emit the syntax
+    ourselves (clean ids `N0..`, quoted+sanitised labels), so it can never carry
+    a syntax error regardless of what the LLM produced."""
+    labels = [_clean_label(n) for n in nodes if str(n).strip()][:6]
+    if len(labels) < 2:
+        return None
+    lines = ["flowchart TD"]
+    for i, label in enumerate(labels):
+        lines.append(f'    N{i}["{label}"]')
+
+    emitted = False
+    seen: set[tuple[int, int]] = set()
+    for edge in edges or []:
+        try:
+            a, b = int(edge[0]), int(edge[1])
+        except (TypeError, ValueError, IndexError, KeyError):
+            continue
+        if 0 <= a < len(labels) and 0 <= b < len(labels) and a != b and (a, b) not in seen:
+            lines.append(f"    N{a} --> N{b}")
+            seen.add((a, b))
+            emitted = True
+    if not emitted:  # no usable edges → chain the concepts so it stays connected
+        for i in range(len(labels) - 1):
+            lines.append(f"    N{i} --> N{i + 1}")
+    return "\n".join(lines)
+
+
 def _build_diagram_with_llm(text: str, subject: str) -> str | None:
+    """Ask the LLM only for *concepts* (JSON), never for Mermaid syntax. We then
+    construct the Mermaid ourselves so it is always valid."""
     from app.config import settings
+
     if not settings.openai_api_key:
         return None
     try:
         from openai import OpenAI
+
         client = OpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             timeout=settings.openai_timeout_seconds,
         )
         prompt = (
-            "You are an expert educator. Generate a valid Mermaid.js flowchart (using `flowchart TD` or `graph TD`) "
-            "that visually represents the key concepts and relationships described in the educational text below. "
-            "Follow these rules strictly:\n"
-            "1. Output ONLY the raw Mermaid code block (do not wrap in markdown ``` or include extra text). It must start with `flowchart TD` or `graph TD`.\n"
-            "2. Keep the diagram extremely simple, clear, and easy to read (3-6 nodes max). Do not use special characters or HTML inside node labels.\n"
-            "3. Enclose node labels in double quotes, e.g. A[\"Label\"].\n"
-            "4. Ensure there are no syntax errors.\n\n"
-            f"Subject: {subject}\n"
-            f"Text:\n{text}"
+            "From the educational text, extract a simple concept map as JSON with exactly "
+            'this shape: {"nodes": ["short concept", ...], "edges": [[fromIndex, toIndex], ...]}\n'
+            "Rules:\n"
+            "- 3 to 6 nodes. Each label is 1-4 plain words: letters and spaces only, no "
+            "punctuation, brackets, or quotes.\n"
+            "- edges use node indices and show how the concepts connect.\n"
+            "- Output ONLY the JSON object, with no markdown fences or extra text.\n\n"
+            f"Subject: {subject}\nText:\n{text}"
         )
         resp = client.chat.completions.create(
             model=settings.openai_model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=0.2,
             max_tokens=300,
         )
-        code = (resp.choices[0].message.content or "").strip()
-        code = re.sub(r"^```(mermaid)?\s*", "", code, flags=re.IGNORECASE)
-        code = re.sub(r"```$", "", code).strip()
-        if code.startswith(("flowchart", "graph")):
-            return code
+        raw = (resp.choices[0].message.content or "").strip()
+        match = re.search(r"\{.*\}", raw, re.S)
+        if not match:
+            return None
+        data = json.loads(match.group(0))
+        return mermaid_from_concepts(data.get("nodes", []), data.get("edges", []))
     except Exception:
-        pass
-    return None
+        return None
 
 
 def build_diagram(subject: str, keywords: list[str], text: str = "") -> str:
-    """A small Mermaid concept map linking this segment's key terms to the topic.
-
-    Always valid Mermaid; rendered client-side. Generated from real keywords so
-    it reflects the actual content of the segment.
-    """
+    """A small Mermaid concept map for the segment. ALWAYS returns valid Mermaid:
+    an LLM-derived concept map when possible, else a deterministic keyword map."""
     if text:
-        llm_diagram = _build_diagram_with_llm(text, subject)
-        if llm_diagram:
-            return llm_diagram
+        llm = _build_diagram_with_llm(text, subject)
+        if llm:
+            return llm
 
-    topic = subject.replace("_", " ").title()
-    lines = ["flowchart TD", f'    TOPIC(["{topic}"])']
+    topic = _clean_label(subject.replace("_", " ").title())
+    lines = ["flowchart TD", f'    TOPIC["{topic}"]']
     for i, kw in enumerate(keywords[:4]):
-        node = f"K{i}"
-        label = kw.replace('"', "")
-        lines.append(f'    TOPIC --> {node}["{label}"]')
+        lines.append(f'    TOPIC --> K{i}["{_clean_label(kw)}"]')
     return "\n".join(lines)
 
 

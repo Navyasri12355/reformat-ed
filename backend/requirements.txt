@@ -30,8 +30,8 @@ redis==5.2.1
 # --- Dev / tests ---
 pytest==8.3.4
 
-# --- Optional: real LLM transforms (works without it via local fallback) ---
-# openai==1.57.4
+# --- Real LLM transforms (falls back to the local generator if the API fails) ---
+openai==1.57.4
 
 # --- Optional: richer NLP atomisation (works without it via regex fallback) ---
 # spacy==3.8.2

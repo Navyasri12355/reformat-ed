@@ -60,44 +60,32 @@ def test_full_pipeline(client: TestClient, educator_token: str, student: dict):
     assert pr.status_code == 200, pr.text
     assert pr.json()["dyslexia_weight"] > pr.json()["adhd_weight"]
 
-    # 4. Student requests transformation of the document.
+    # 4. Student prepares their own material → self-study, auto-approved (no
+    #    educator review gate).
     tr = client.post(
         "/transforms",
         json={"document_id": doc_id},
         headers=_auth(student["token"]),
     )
     assert tr.status_code == 202, tr.text
-    assert tr.json()["review_required"] is True
+    assert tr.json()["review_required"] is False
 
-    # 5. Wait for transforms, then educator approves the whole review queue.
+    # 5. Content is committed per-atom; poll until it appears.
     deadline = time.time() + 15
-    queue_items: list[dict] = []
+    content: dict = {"atoms": []}
     while time.time() < deadline:
-        q = client.get("/transforms/review-queue", headers=_auth(educator_token)).json()
-        if q["total"] >= 1:
-            queue_items = q["items"]
+        content = client.get(
+            f"/transforms?document_id={doc_id}", headers=_auth(student["token"])
+        ).json()
+        if content["atoms"]:
             break
         time.sleep(0.2)
-    assert queue_items, "expected pending transforms in review queue"
-
-    for item in queue_items:
-        rv = client.post(
-            f"/transforms/{item['transformed_atom_id']}/review",
-            json={"action": "approve"},
-            headers=_auth(educator_token),
-        )
-        assert rv.status_code == 200, rv.text
-        assert rv.json()["review_status"] == "approved"
-
-    # 6. Student fetches their personalised, approved content.
-    content = client.get(
-        f"/transforms?document_id={doc_id}",
-        headers=_auth(student["token"]),
-    ).json()
-    assert content["atoms"], "student should receive approved atoms"
+    assert content["atoms"], "student should receive auto-approved atoms"
     first = content["atoms"][0]
-    assert first["review_status"] == "approved"
+    assert first["review_status"] == "auto_approved"
     assert first["output_format"] == "dyslexia_audio"
+    # Content must not be truncated mid-word or empty.
+    assert len(first["transformed_text"]) > 20
 
     # 7. Student starts a session and records signals.
     sess = client.post(
@@ -120,3 +108,34 @@ def test_full_pipeline(client: TestClient, educator_token: str, student: dict):
     analytics = client.get(f"/analytics/{doc_id}", headers=_auth(educator_token))
     assert analytics.status_code == 200
     assert isinstance(analytics.json(), list)
+
+
+def test_educator_initiated_transform_requires_review(client: TestClient, educator_token: str, student: dict):
+    # Give the student a profile.
+    client.post(
+        f"/profiles/{student['id']}/quiz",
+        json={"answers": {f"q{i}": "never" for i in range(1, 11)} | {"q3": "always", "q6": "always"}},
+        headers=_auth(student["token"]),
+    )
+    files = {"file": ("lesson2.txt", io.BytesIO(SAMPLE_TEXT.encode()), "text/plain")}
+    doc_id = client.post("/documents", files=files, headers=_auth(educator_token)).json()["document_id"]
+    _poll_parse(client, educator_token, doc_id)
+
+    # Educator requests a transform FOR the student → must go through review.
+    tr = client.post(
+        "/transforms",
+        json={"document_id": doc_id, "student_id": student["id"]},
+        headers=_auth(educator_token),
+    )
+    assert tr.status_code == 202, tr.text
+    assert tr.json()["review_required"] is True
+
+    # It appears in the educator's review queue as pending.
+    deadline = time.time() + 15
+    total = 0
+    while time.time() < deadline:
+        total = client.get("/transforms/review-queue", headers=_auth(educator_token)).json()["total"]
+        if total >= 1:
+            break
+        time.sleep(0.2)
+    assert total >= 1, "educator-initiated transforms must be reviewable"

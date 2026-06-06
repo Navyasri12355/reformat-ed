@@ -75,8 +75,15 @@ def request_transform(
         )
     ) or 0
 
-    task_id = run_transform(body.document_id, student_id)
-    auto_approve = bool(doc.institution and doc.institution.auto_approve_transforms)
+    # A student preparing their OWN material is self-study — no educator review
+    # gate. Educator-initiated transforms still go through the review queue.
+    self_study = actor.role == "student" and student_id == actor.id
+    task_id = run_transform(body.document_id, student_id, force_auto_approve=self_study)
+    auto_approve = (
+        self_study
+        or settings.auto_approve_all
+        or bool(doc.institution and doc.institution.auto_approve_transforms)
+    )
 
     return TransformBatchResponse(
         transform_batch_id=uuid.uuid4().hex,

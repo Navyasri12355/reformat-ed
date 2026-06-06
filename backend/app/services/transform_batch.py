@@ -16,7 +16,9 @@ from app.services.prompt_router import ProfileWeights
 from app.services.transformer import transform_atom
 
 
-def transform_document_for_student(document_id: str, student_id: str) -> dict:
+def transform_document_for_student(
+    document_id: str, student_id: str, force_auto_approve: bool = False
+) -> dict:
     with session_scope() as db:
         doc = db.get(SourceDocument, document_id)
         if doc is None:
@@ -34,7 +36,7 @@ def transform_document_for_student(document_id: str, student_id: str) -> dict:
             asd=float(profile.asd_weight),
         )
 
-        auto_approve = settings.auto_approve_all
+        auto_approve = settings.auto_approve_all or force_auto_approve
         if not auto_approve and doc.institution_id:
             inst = doc.institution
             auto_approve = bool(inst and inst.auto_approve_transforms)
@@ -84,7 +86,9 @@ def transform_document_for_student(document_id: str, student_id: str) -> dict:
                     validation_passed=result.validation_passed,
                 )
             )
+            # Commit per atom so the student can begin the first segment while
+            # the rest are still generating (responsive on long documents).
+            db.commit()
             created += 1
 
-        db.commit()
         return {"document_id": document_id, "student_id": student_id, "created": created}

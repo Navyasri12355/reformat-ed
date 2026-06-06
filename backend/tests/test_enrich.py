@@ -1,4 +1,11 @@
-from app.services.enrich import build_meta, build_poll, detect_idioms, extract_keywords
+from app.services.enrich import (
+    build_diagram,
+    build_meta,
+    build_poll,
+    detect_idioms,
+    extract_keywords,
+    mermaid_from_concepts,
+)
 
 ATOM = {
     "raw_text": (
@@ -52,3 +59,35 @@ def test_poll_is_deterministic():
 def test_idiom_detection_literal_meaning():
     idioms = detect_idioms("This is a piece of cake to understand.")
     assert idioms == [{"phrase": "a piece of cake", "literal": "very easy"}]
+
+
+def test_mermaid_from_concepts_sanitises_labels_and_edges():
+    code = mermaid_from_concepts(
+        ["Light (sunlight)", "Glucose & O2", 'Is it "food"'],
+        [[0, 1], [1, 2], [9, 9], "bad"],
+    )
+    assert code is not None
+    assert code.startswith("flowchart TD")
+    # Mermaid-breaking characters never appear in generated code.
+    for ch in ["(", ")", "&"]:
+        assert ch not in code
+    assert '"Light sunlight"' in code
+    assert '"Glucose O2"' in code
+    assert '"Is it food"' in code
+    assert "N0 --> N1" in code
+    assert "N9" not in code  # out-of-range edge dropped
+
+
+def test_mermaid_from_concepts_chains_when_no_edges():
+    code = mermaid_from_concepts(["A", "B", "C"], [])
+    assert "N0 --> N1" in code and "N1 --> N2" in code
+
+
+def test_mermaid_from_concepts_needs_two_nodes():
+    assert mermaid_from_concepts(["only one"], []) is None
+
+
+def test_build_diagram_fallback_is_valid_flowchart():
+    code = build_diagram("biology", ["photosynthesis", "chloroplast"], text="")
+    assert code.startswith("flowchart TD")
+    assert '"Photosynthesis"' in code or '"photosynthesis"' in code

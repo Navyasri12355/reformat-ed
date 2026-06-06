@@ -2,12 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "docs",
-      "runtimeExecutable": "py",
-      "runtimeArgs": ["-3.13", "-m", "http.server", "8090", "--directory", "docs"],
-      "port": 8090
-    },
-    {
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
