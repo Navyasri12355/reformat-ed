@@ -80,12 +80,28 @@ def get_voice_profile(output_format: str) -> VoiceProfile:
 _engine_cache: dict[str, object] = {}
 
 
-def coqui_available() -> bool:
+def _apply_compat_shims() -> None:
+    """The only coqui-tts builds that run on Python 3.13 import a couple of
+    helpers that newer `transformers` versions renamed/removed. Re-provide them
+    so the TTS package imports cleanly."""
     try:
-        import TTS  # noqa: F401
+        import torch
+        import transformers.pytorch_utils as _tpu
+
+        if not hasattr(_tpu, "isin_mps_friendly"):
+            _tpu.isin_mps_friendly = lambda elements, test_elements: torch.isin(elements, test_elements)
     except Exception:
-        return False
-    return True
+        pass
+
+
+def coqui_available() -> bool:
+    """Cheap check that the Coqui package is installed — does NOT import it (which
+    would load PyTorch and block for tens of seconds). The heavy import happens
+    only when audio is actually synthesised; if that fails, the client falls back
+    to the browser voice."""
+    import importlib.util
+
+    return importlib.util.find_spec("TTS") is not None
 
 
 def profile_payload(output_format: str) -> dict:
@@ -104,6 +120,7 @@ def profile_payload(output_format: str) -> dict:
 
 def _get_coqui():
     if "tts" not in _engine_cache:
+        _apply_compat_shims()
         from TTS.api import TTS as CoquiTTS  # lazy, heavy import
 
         model = getattr(settings, "coqui_model", None) or "tts_models/en/ljspeech/tacotron2-DDC"

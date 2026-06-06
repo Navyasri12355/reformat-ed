@@ -94,64 +94,122 @@ class CurriculumAtomiser:
         self.min = min_words_per_atom
 
     def atomise(self, pages: list[dict]) -> list[AtomCandidate]:
-        full_text = "\n\n".join(
-            p["text"] for p in pages if isinstance(p.get("text"), str) and p["text"].strip()
-        )
-        sentences = split_sentences(full_text)
+        """Split a document into coherent, topic-respecting atoms.
+
+        Works on whole paragraphs (not fixed character windows): short heading
+        lines are attached to the content they introduce, paragraphs are grouped
+        up to the target size on natural boundaries, a paragraph is only ever
+        split between whole sentences, and junk (page numbers, codes, stray
+        fragments) is dropped — so every atom reads as a complete idea.
+        """
+        paragraphs = self._merge_headings(self._extract_paragraphs(pages))
 
         atoms: list[AtomCandidate] = []
         chunk: list[str] = []
         chunk_words = 0
         seq = 0
 
-        def flush(force: bool = False) -> None:
+        def flush() -> None:
             nonlocal chunk, chunk_words, seq
-            if chunk and (force or chunk_words >= self.min):
-                atoms.append(self._build_atom(seq, " ".join(chunk)))
+            if not chunk:
+                return
+            text = "\n".join(chunk).strip()
+            if self._is_meaningful(text):
+                atoms.append(self._build_atom(seq, text))
                 seq += 1
-                chunk = []
-                chunk_words = 0
+            chunk = []
+            chunk_words = 0
 
-        for sentence in sentences:
-            words = len(sentence.split())
+        for para in paragraphs:
+            words = len(para.split())
 
-            # A single sentence longer than max: split it at clause boundaries.
+            # A single very long paragraph → split between whole sentences.
             if words > self.max:
-                flush(force=True)
-                for clause_chunk in self._split_long_sentence(sentence):
-                    atoms.append(self._build_atom(seq, clause_chunk))
-                    seq += 1
+                flush()
+                for piece in self._pack_sentences(para):
+                    if self._is_meaningful(piece):
+                        atoms.append(self._build_atom(seq, piece))
+                        seq += 1
                 continue
 
-            if chunk_words + words > self.max and chunk_words >= self.min:
-                flush(force=True)
-                chunk = [sentence]
-                chunk_words = words
-            else:
-                chunk.append(sentence)
-                chunk_words += words
+            # Start a new atom once adding this paragraph would exceed the target
+            # and we already have enough content — keeps related paragraphs together.
+            if chunk_words + words > self.target and chunk_words >= self.min:
+                flush()
+            chunk.append(para)
+            chunk_words += words
 
-        # Final chunk: emit even if short (don't silently drop trailing content).
-        flush(force=bool(chunk))
+        flush()
         return atoms
 
-    def _split_long_sentence(self, sentence: str) -> list[str]:
-        clauses = re.split(r"(?<=[,;:])\s+", sentence)
+    @staticmethod
+    def _extract_paragraphs(pages: list[dict]) -> list[str]:
+        paragraphs: list[str] = []
+        for page in pages:
+            text = page.get("text", "")
+            if not isinstance(text, str) or not text.strip():
+                continue
+            for block in re.split(r"\n\s*\n", text):
+                para = " ".join(block.split())  # collapse internal newlines/spaces
+                if para:
+                    paragraphs.append(para)
+        return paragraphs
+
+    @staticmethod
+    def _merge_headings(paragraphs: list[str]) -> list[str]:
+        """Attach short heading-like lines to the paragraph they introduce, so a
+        heading never becomes a meaningless stand-alone atom."""
+        out: list[str] = []
+        pending = ""
+        for para in paragraphs:
+            # Drop page furniture: pure numbers / symbols (e.g. "1", "- 2 -").
+            if re.fullmatch(r"[\d\W]+", para.strip()):
+                continue
+            looks_like_heading = len(para.split()) <= 8 and not para.rstrip().endswith((".", "!", "?"))
+            if looks_like_heading:
+                pending = f"{pending} {para}".strip() if pending else para
+                continue
+            if pending:
+                sep = " " if pending.rstrip().endswith((":", "-")) else " — "
+                para = f"{pending}{sep}{para}"
+                pending = ""
+            out.append(para)
+        if pending:
+            out.append(pending)
+        return out
+
+    def _pack_sentences(self, text: str) -> list[str]:
+        """Pack whole sentences into <= max-word pieces (never splits a sentence)."""
         out: list[str] = []
         buf: list[str] = []
         buf_words = 0
-        for clause in clauses:
-            cw = len(clause.split())
-            if buf_words + cw > self.target and buf:
+        for sentence in split_sentences(text) or [text]:
+            sw = len(sentence.split())
+            if buf_words + sw > self.max and buf:
                 out.append(" ".join(buf))
-                buf = [clause]
-                buf_words = cw
+                buf = [sentence]
+                buf_words = sw
             else:
-                buf.append(clause)
-                buf_words += cw
+                buf.append(sentence)
+                buf_words += sw
         if buf:
             out.append(" ".join(buf))
         return out
+
+    @staticmethod
+    def _is_meaningful(text: str) -> bool:
+        """Drop junk atoms (page numbers, codes, dotted TOC lines) while keeping
+        any real prose — even short sentences."""
+        words = text.split()
+        if not words:
+            return False
+        real_words = [w for w in words if sum(ch.isalpha() for ch in w) >= 3]
+        if len(real_words) < 3:
+            return False  # e.g. "1", "031", "Subject Code 031"
+        numeric_words = [w for w in words if any(ch.isdigit() for ch in w)]
+        if len(numeric_words) > len(words) * 0.5:
+            return False  # mostly numbers → tables / page furniture
+        return True
 
     def _build_atom(self, seq: int, text: str) -> AtomCandidate:
         word_count = len(text.split())

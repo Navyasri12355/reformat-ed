@@ -10,6 +10,7 @@ system: |
   - Maintain absolute consistency in terminology. If a technical term is introduced, do not use synonyms or alternative names for it later.
   - If comparison is necessary, use literal descriptions (e.g., "This is similar to X because both share characteristic Y" rather than "It's like X").
   - End with a "What you learned:" section that mirrors the opening section, summarizing the exact concepts covered and solidifying comprehension.
+  - The source is extracted from a document and may be fragmented, poorly formatted, or missing words. NEVER reproduce broken fragments or cut-off sentences verbatim. Infer the intended meaning from the subject and rewrite everything into complete, grammatically correct, coherent sentences. If a fragment is too garbled to interpret, omit it rather than copying it.
   - Return ONLY the transformed content. Do not include any intro, outro, or meta-commentary.
 user: |
   Original curriculum content:

@@ -27,56 +27,72 @@ class QuizQuestion:
     asd_loading: float
 
 
+# Questions adapted from the screening instruments used by thruday.com's
+# self-assessments: the WHO ASRS v1.1 (ADHD), a DSM-5 based autism screen (ASD),
+# and a dyslexia checklist. Answered on a frequency scale (never → always).
 QUIZ_QUESTIONS: list[QuizQuestion] = [
+    # --- ADHD (ASRS: inattention, hyperactivity, impulsivity) ---
     QuizQuestion(
         "q1",
-        "I find it hard to stay focused on a task without it changing or having a reward.",
-        adhd_loading=0.85, dyslexia_loading=0.05, asd_loading=0.10,
+        "How often do you have trouble wrapping up the final details of a project once the challenging parts are done?",
+        adhd_loading=0.85, dyslexia_loading=0.10, asd_loading=0.05,
     ),
     QuizQuestion(
         "q2",
-        "I prefer listening to information rather than reading it.",
-        adhd_loading=0.15, dyslexia_loading=0.80, asd_loading=0.05,
+        "How often do you have difficulty getting things in order when you have to do a task that requires organisation?",
+        adhd_loading=0.85, dyslexia_loading=0.05, asd_loading=0.10,
     ),
     QuizQuestion(
         "q3",
-        "I like knowing exactly what will happen next before I start a new task.",
-        adhd_loading=0.05, dyslexia_loading=0.05, asd_loading=0.90,
+        "How often do you feel restless, fidgety, or overly active, as if driven by a motor?",
+        adhd_loading=0.85, dyslexia_loading=0.05, asd_loading=0.10,
     ),
     QuizQuestion(
         "q4",
-        "Reading long paragraphs feels tiring, or the words seem to move around.",
+        "How often are you distracted by activity or noise around you?",
+        adhd_loading=0.90, dyslexia_loading=0.05, asd_loading=0.05,
+    ),
+    # --- Dyslexia (reading, writing, memory) ---
+    QuizQuestion(
+        "q5",
+        "How often do you find yourself re-reading sentences several times to understand them?",
         adhd_loading=0.10, dyslexia_loading=0.85, asd_loading=0.05,
     ),
     QuizQuestion(
-        "q5",
-        "I often start tasks enthusiastically but struggle to finish them.",
-        adhd_loading=0.80, dyslexia_loading=0.10, asd_loading=0.10,
-    ),
-    QuizQuestion(
         "q6",
-        "Unexpected changes to a plan or routine really bother me.",
-        adhd_loading=0.05, dyslexia_loading=0.05, asd_loading=0.90,
-    ),
-    QuizQuestion(
-        "q7",
-        "I find it easier to learn through games or interactive challenges.",
-        adhd_loading=0.75, dyslexia_loading=0.15, asd_loading=0.10,
-    ),
-    QuizQuestion(
-        "q8",
-        "I sometimes mix up the order of letters when spelling words.",
+        "How often do you confuse or mix up similar-looking words or letters when reading or writing?",
         adhd_loading=0.05, dyslexia_loading=0.90, asd_loading=0.05,
     ),
     QuizQuestion(
+        "q7",
+        "How often do you make spelling mistakes, even with words you know well?",
+        adhd_loading=0.05, dyslexia_loading=0.90, asd_loading=0.05,
+    ),
+    QuizQuestion(
+        "q8",
+        "How often does reading aloud, or reading for a long time, feel slow and tiring?",
+        adhd_loading=0.10, dyslexia_loading=0.85, asd_loading=0.05,
+    ),
+    # --- Autism / ASD (social, patterns, sensory) ---
+    QuizQuestion(
         "q9",
-        "I work best when instructions are broken into very clear numbered steps.",
-        adhd_loading=0.20, dyslexia_loading=0.10, asd_loading=0.70,
+        "How often do you feel overwhelmed or drained in social situations?",
+        adhd_loading=0.10, dyslexia_loading=0.05, asd_loading=0.85,
     ),
     QuizQuestion(
         "q10",
-        "I get easily distracted by other things happening around me.",
-        adhd_loading=0.90, dyslexia_loading=0.05, asd_loading=0.05,
+        "How often do you keep to the same routines and feel upset when plans change unexpectedly?",
+        adhd_loading=0.05, dyslexia_loading=0.05, asd_loading=0.90,
+    ),
+    QuizQuestion(
+        "q11",
+        "How often do you have intense interests that take up most of your time and focus?",
+        adhd_loading=0.15, dyslexia_loading=0.05, asd_loading=0.75,
+    ),
+    QuizQuestion(
+        "q12",
+        "How often are you very sensitive to sounds, lights, textures, or other sensory input?",
+        adhd_loading=0.05, dyslexia_loading=0.05, asd_loading=0.85,
     ),
 ]
 

@@ -11,6 +11,7 @@ system: |
   - Focus on clear headers and bold keywords to help guide visual attention.
   - End with a "Progress Cue:" section (exactly one sentence) that celebrates the student's progress and notes what they have successfully mastered.
   - Do NOT include fictional characters, gamertags, sound effects, or chat style. Gamification should be structural and pacing-based, not superficial.
+  - The source is extracted from a document and may be fragmented, poorly formatted, or missing words. NEVER reproduce broken fragments or cut-off sentences verbatim. Infer the intended meaning from the subject and rewrite everything into complete, coherent sentences. If a fragment is too garbled to interpret, omit it rather than copying it.
   - Return ONLY the transformed content. Do not include any intro, outro, or meta-commentary.
 user: |
   Original curriculum content:

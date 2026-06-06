@@ -48,10 +48,8 @@ def test_full_pipeline(client: TestClient, educator_token: str, student: dict):
     assert status["atom_count"] >= 1
 
     # 3. Student completes the onboarding quiz (dyslexia-leaning).
-    quiz_answers = {
-        "q1": "never", "q2": "always", "q3": "never", "q4": "always", "q5": "never",
-        "q6": "never", "q7": "never", "q8": "always", "q9": "never", "q10": "never",
-    }
+    quiz_answers = {f"q{i}": "never" for i in range(1, 13)}
+    quiz_answers.update({"q5": "always", "q6": "always", "q7": "always", "q8": "always"})
     pr = client.post(
         f"/profiles/{student['id']}/quiz",
         json={"answers": quiz_answers},

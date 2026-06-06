@@ -36,7 +36,10 @@ openai==1.57.4
 # --- Optional: richer NLP atomisation (works without it via regex fallback) ---
 # spacy==3.8.2
 
-# --- Optional: server-side Coqui TTS with per-profile voice modulation ---
-# (browser voice with the same modulation is used automatically if absent)
-# TTS==0.22.0
-# librosa==0.10.2     # speed + pitch modulation of Coqui output
+# --- Coqui TTS: server-side per-profile voice (browser voice is used as a
+#     fallback automatically if these are absent) ---
+# Install the CPU PyTorch wheels first, from the PyTorch index:
+#   pip install torch torchaudio torchcodec --index-url https://download.pytorch.org/whl/cpu
+coqui-tts==0.27.5
+transformers==4.57.1   # coqui-tts 0.27.x needs >=4.57; newer 5.x breaks its imports
+librosa==0.11.0        # speed + pitch modulation of the Coqui output

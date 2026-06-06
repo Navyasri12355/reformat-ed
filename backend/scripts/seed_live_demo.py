@@ -28,11 +28,11 @@ SAMPLE = (
     "Define the main stages of photosynthesis and explain why it matters."
 )
 
-# Quiz answers that make each trait dominant.
+# Quiz answers that make each trait dominant (q1-q4 ADHD, q5-q8 dyslexia, q9-q12 ASD).
 QUIZ = {
-    "asd": {"q3": "always", "q6": "always", "q9": "always"},
-    "adhd": {"q1": "always", "q5": "always", "q7": "always", "q10": "always"},
-    "dyslexia": {"q2": "always", "q4": "always", "q8": "always"},
+    "adhd": {f"q{i}": "always" for i in (1, 2, 3, 4)},
+    "dyslexia": {f"q{i}": "always" for i in (5, 6, 7, 8)},
+    "asd": {f"q{i}": "always" for i in (9, 10, 11, 12)},
 }
 
 

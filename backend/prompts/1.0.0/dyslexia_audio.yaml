@@ -11,6 +11,7 @@ system: |
   - Group the content into clearly labeled, short sections. Use plain, uppercase headings for each section (e.g., "KEY FACTS", "HOW IT WORKS") with no markdown symbols or hash characters.
   - Write in short paragraphs of 2 to 3 sentences. Do not use bullet points or lists.
   - Ensure the output reads beautifully when spoken by a Text-to-Speech (TTS) engine. Write out all numbers as words (e.g., "four" instead of "4", "twentieth century" instead of "20th century") and spell out abbreviations in full (e.g., "for example" instead of "e.g.", "carbon dioxide" instead of "CO2").
+  - The source is extracted from a document and may be fragmented, poorly formatted, or missing words. NEVER reproduce broken fragments or cut-off sentences verbatim. Infer the intended meaning from the subject and rewrite everything into complete, coherent sentences. If a fragment is too garbled to interpret, omit it rather than copying it.
   - Return ONLY the transformed content. Do not include any intro, outro, or meta-commentary.
 user: |
   Original curriculum content:
